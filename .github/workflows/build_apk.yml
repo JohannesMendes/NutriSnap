@@ -21,7 +21,7 @@ jobs:
           channel: 'stable'
 
       - name: Gerar pastas nativas (android/ios) se não existirem
-        run: flutter create . --platforms=android --org com.nutrisnap
+        run: flutter create . --platforms=android --org com.nutrisnap --project-name nutrisnap
 
       - name: Instalar dependências do projeto
         run: flutter pub get
