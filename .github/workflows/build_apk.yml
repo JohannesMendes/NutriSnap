@@ -21,8 +21,10 @@ jobs:
         with:
           channel: 'stable'
 
-      - name: Gerar pastas nativas (android/ios) se não existirem
-        run: flutter create . --platforms=android --org com.nutrisnap --project-name nutrisnap
+      - name: Gerar pasta nativa (android) sem tocar no código-fonte
+        run: |
+          flutter create --platforms=android --org com.nutrisnap --project-name nutrisnap /tmp/nutrisnap_scaffold
+          cp -r /tmp/nutrisnap_scaffold/android . --overwrite
 
       - name: Ativar core library desugaring (necessário pra notificações)
         shell: python3 {0}
