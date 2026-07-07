@@ -1,0 +1,45 @@
+name: nutrisnap
+description: "NutriSnap - Evolução & Nutrição Inteligente"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # Firebase (Auth + Banco de dados)
+  firebase_core: ^2.27.0
+  firebase_auth: ^4.17.4
+  cloud_firestore: ^4.15.5
+
+  # Notificações locais (lembretes de água/refeição)
+  flutter_local_notifications: ^17.0.0
+
+  # Câmera e imagem (registro de refeições e fotos diárias)
+  image_picker: ^1.0.7
+
+  # Chamada HTTP pra API de IA (Gemini)
+  http: ^1.2.0
+
+  # Gerenciamento de estado simples
+  provider: ^6.1.2
+
+  # Armazenamento local leve (cache, preferências)
+  shared_preferences: ^2.2.2
+
+  # Ícones e fontes modernas
+  google_fonts: ^6.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/
