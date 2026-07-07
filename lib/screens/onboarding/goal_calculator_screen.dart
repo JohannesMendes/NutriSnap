@@ -50,6 +50,7 @@ class _GoalCalculatorScreenState extends State<GoalCalculatorScreen> {
 
     setState(() => _result = GoalCalculator.calculate(profile));
     LocalStorageService.saveProfile(profile);
+    LocalStorageService.saveTargets(_result!);
   }
 
   @override

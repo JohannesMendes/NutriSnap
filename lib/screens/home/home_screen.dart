@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../services/local_storage_service.dart';
+import '../../models/user_profile.dart';
+import '../diary/diary_screen.dart';
 
-/// Tela inicial: resumo do dia + acesso ao backup manual.
-/// Nas próximas entregas entram aqui: diário de refeições, contador de água,
-/// registro por foto (IA) e notificações.
+/// Tela inicial: resumo do dia (consumido vs meta) + acesso ao diário e
+/// ao backup manual.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -14,6 +15,11 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _working = false;
+
+  int get _consumedToday {
+    final meals = LocalStorageService.loadMealsForDate(DateTime.now());
+    return meals.fold(0, (sum, m) => sum + m.totalCalories);
+  }
 
   Future<void> _export() async {
     setState(() => _working = true);
@@ -43,6 +49,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final DailyTargets? targets = LocalStorageService.loadTargets();
+    final consumed = _consumedToday;
+    final target = targets?.calories ?? 0;
+    final remaining = target - consumed;
+    final progress = target > 0 ? (consumed / target).clamp(0.0, 1.0) : 0.0;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Hoje')),
       body: ListView(
@@ -54,17 +66,46 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Resumo do dia',
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Text('Resumo do dia', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 16),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 10,
+                      backgroundColor: AppColors.surfaceLight,
+                      valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+                    ),
+                  ),
                   const SizedBox(height: 12),
-                  const Text(
-                    'Diário de refeições, contador de água e registro por foto '
-                    'com IA chegam na próxima atualização.',
-                    style: TextStyle(color: AppColors.textSecondary),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('$consumed kcal consumidas',
+                          style: const TextStyle(color: AppColors.textSecondary)),
+                      Text(
+                        target > 0
+                            ? (remaining >= 0
+                                ? '$remaining kcal restantes'
+                                : '${-remaining} kcal acima da meta')
+                            : 'Meta não calculada',
+                        style: TextStyle(
+                          color: remaining < 0 ? AppColors.danger : AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const DiaryScreen()))
+                .then((_) => setState(() {})),
+            icon: const Icon(Icons.restaurant_menu_rounded),
+            label: const Text('Abrir diário de refeições'),
           ),
           const SizedBox(height: 16),
           Card(
@@ -73,8 +114,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Backup dos dados',
-                      style: Theme.of(context).textTheme.titleMedium),
+                  Text('Backup dos dados', style: Theme.of(context).textTheme.titleMedium),
                   const SizedBox(height: 4),
                   const Text(
                     'Seus dados ficam salvos só neste aparelho. Exporte um '
