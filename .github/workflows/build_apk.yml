@@ -25,6 +25,9 @@ jobs:
       - name: Instalar dependências do projeto
         run: flutter pub get
 
+      - name: Atualizar pacotes para versões compatíveis
+        run: flutter pub upgrade --major-versions
+
       - name: Compilar o APK (release)
         run: flutter build apk --release
 
