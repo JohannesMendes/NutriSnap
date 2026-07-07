@@ -26,6 +26,11 @@ jobs:
           flutter create --platforms=android --org com.nutrisnap --project-name nutrisnap /tmp/nutrisnap_scaffold
           cp -r /tmp/nutrisnap_scaffold/android .
 
+      - name: Adicionar permissão de internet (necessária pro scanner de foto via IA)
+        run: |
+          sed -i 's#<manifest xmlns:android="http://schemas.android.com/apk/res/android">#<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.INTERNET" />#' android/app/src/main/AndroidManifest.xml
+          grep -q "android.permission.INTERNET" android/app/src/main/AndroidManifest.xml && echo "Permissão adicionada com sucesso" || (echo "Falha ao adicionar permissão" && exit 1)
+
       - name: Ativar core library desugaring (necessário pra notificações)
         shell: python3 {0}
         run: |
