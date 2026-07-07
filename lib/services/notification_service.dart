@@ -59,6 +59,8 @@ class NotificationService {
       scheduled,
       NotificationDetails(android: channel),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time, // repete todo dia
     );
   }
