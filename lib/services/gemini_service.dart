@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 /// Envia a foto do prato pra API do Gemini e recebe de volta a estimativa
 /// de alimentos, peso e macros — tudo em uma única chamada.
 class GeminiService {
-  static const _model = 'gemini-2.0-flash';
+  static const _model = 'gemini-2.5-flash';
 
   static Future<List<Map<String, dynamic>>> analyzeFoodPhoto({
     required String apiKey,
