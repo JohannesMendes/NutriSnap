@@ -1,15 +1,11 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:file_picker/file_picker.dart';
 import '../models/user_profile.dart';
 import '../models/meal.dart';
 
-/// Guarda todos os dados do app direto no aparelho (Hive), sem servidor.
-/// Também oferece exportar/importar um backup manual em .json, pra o
-/// usuário não perder os dados ao trocar de celular.
+/// Guarda todos os dados do app direto no aparelho (Hive), sem servidor
+/// e sem nenhuma configuração externa — persistência 100% local e
+/// transparente pro usuário.
 class LocalStorageService {
   static const _profileBox = 'profile_box';
   static const _profileKey = 'user_profile';
@@ -64,6 +60,75 @@ class LocalStorageService {
   static String _dayKey(DateTime date) =>
       '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
 
+  // ---------------- Água ----------------
+
+  static int loadWaterForDate(DateTime date) {
+    final box = Hive.box(_diaryBox);
+    return box.get('water_${_dayKey(date)}', defaultValue: 0) as int;
+  }
+
+  static Future<void> addWater(DateTime date, int ml) async {
+    final box = Hive.box(_diaryBox);
+    final key = 'water_${_dayKey(date)}';
+    final current = box.get(key, defaultValue: 0) as int;
+    await box.put(key, current + ml);
+  }
+
+  // ---------------- Foto diária (check-in) ----------------
+
+  static Future<void> savePhotoPath(DateTime date, String path) async {
+    final box = Hive.box(_diaryBox);
+    await box.put('photo_${_dayKey(date)}', path);
+  }
+
+  static String? loadPhotoPath(DateTime date) {
+    final box = Hive.box(_diaryBox);
+    return box.get('photo_${_dayKey(date)}');
+  }
+
+  /// Retorna todas as fotos de check-in salvas, mais recentes primeiro.
+  static List<MapEntry<String, String>> loadAllPhotos() {
+    final box = Hive.box(_diaryBox);
+    final entries = box.keys
+        .where((k) => k.toString().startsWith('photo_'))
+        .map((k) => MapEntry(k.toString().replaceFirst('photo_', ''), box.get(k) as String))
+        .toList();
+    entries.sort((a, b) => b.key.compareTo(a.key));
+    return entries;
+  }
+
+  // ---------------- Configurações (API key + lembretes) ----------------
+
+  static Future<void> saveGeminiApiKey(String key) async {
+    final box = Hive.box(_profileBox);
+    await box.put('gemini_api_key', key);
+  }
+
+  static String? loadGeminiApiKey() => Hive.box(_profileBox).get('gemini_api_key');
+
+  /// Horários dos lembretes, salvos como "HH:mm". Chaves: breakfast, lunch,
+  /// dinner, water_start, water_end, water_interval_hours.
+  static Future<void> saveReminderSettings(Map<String, String> settings) async {
+    final box = Hive.box(_profileBox);
+    await box.put('reminder_settings', jsonEncode(settings));
+  }
+
+  static Map<String, String> loadReminderSettings() {
+    final box = Hive.box(_profileBox);
+    final raw = box.get('reminder_settings');
+    if (raw == null) {
+      return {
+        'breakfast': '08:00',
+        'lunch': '12:30',
+        'dinner': '19:30',
+        'water_start': '08:00',
+        'water_end': '22:00',
+        'water_interval_hours': '2',
+      };
+    }
+    return Map<String, String>.from(jsonDecode(raw));
+  }
+
   /// Retorna as refeições do dia informado. Se o dia ainda não tem nada
   /// salvo, cria as 3 refeições padrão (Café da Manhã, Almoço, Jantar).
   static List<Meal> loadMealsForDate(DateTime date) {
@@ -79,50 +144,4 @@ class LocalStorageService {
     await box.put(_dayKey(date), jsonEncode(meals.map((m) => m.toMap()).toList()));
   }
 
-  /// Gera um arquivo .json com todos os dados (perfil + diário) e abre o
-  /// menu de compartilhamento do celular (WhatsApp, Google Drive, e-mail, etc.)
-  static Future<void> exportBackup() async {
-    final profileBox = Hive.box(_profileBox);
-    final diaryBox = Hive.box(_diaryBox);
-    final data = <String, dynamic>{
-      _profileBox: {for (final k in profileBox.keys) k.toString(): profileBox.get(k)},
-      _diaryBox: {for (final k in diaryBox.keys) k.toString(): diaryBox.get(k)},
-    };
-
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/nutrisnap_backup.json');
-    await file.writeAsString(jsonEncode(data));
-
-    await Share.shareXFiles(
-      [XFile(file.path)],
-      text: 'Backup do NutriSnap',
-    );
-  }
-
-  /// Deixa o usuário escolher um arquivo .json de backup e restaura os
-  /// dados a partir dele.
-  static Future<bool> importBackup() async {
-    final result = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['json'],
-    );
-    if (result == null || result.files.single.path == null) return false;
-
-    final file = File(result.files.single.path!);
-    final content = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
-
-    if (content.containsKey(_profileBox)) {
-      final profileBox = Hive.box(_profileBox);
-      for (final entry in (content[_profileBox] as Map<String, dynamic>).entries) {
-        await profileBox.put(entry.key, entry.value);
-      }
-    }
-    if (content.containsKey(_diaryBox)) {
-      final diaryBox = Hive.box(_diaryBox);
-      for (final entry in (content[_diaryBox] as Map<String, dynamic>).entries) {
-        await diaryBox.put(entry.key, entry.value);
-      }
-    }
-    return true;
-  }
 }

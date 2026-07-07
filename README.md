@@ -1,54 +1,58 @@
 # NutriSnap 🥗
 
 App mobile de evolução e nutrição inteligente, 100% gratuito, com calculadora
-de metas, diário de refeições e registro de alimentos por foto (IA).
+de metas, diário de refeições, contador de água, scanner de prato por foto
+(IA) e lembretes diários.
 
 **Todos os dados ficam salvos localmente no aparelho** (Hive) — sem
-servidor, sem custo, sem configuração de backend. O usuário pode exportar um
-backup manual (.json) a qualquer momento pra não perder os dados ao trocar
-de celular.
+servidor, sem custo, sem configuração de backend.
 
 ## Status atual
 
 ✅ Perfil local + calculadora de metas diárias (calorias, macros e água)
-✅ Backup manual (exportar/importar via .json)
-⏳ Diário de refeições, contador de água, registro por foto com IA e
-notificações — próximas entregas.
+✅ Diário de refeições (padrão + personalizadas) com estimativa inteligente
+   por objetivo pra entrada manual
+✅ Contagem regressiva fixa (quanto falta bater a meta do dia)
+✅ Contador de água
+✅ Scanner de prato por foto via IA (Gemini) — identifica os alimentos,
+   estima peso e macros automaticamente
+✅ Fotos das refeições salvas numa pasta dedicada na galeria do celular
+   (evolução visual ao longo do tempo)
+✅ Lembretes diários de refeição e água (notificações locais)
+✅ Splash screen animada
 
 ## Como subir isso pro seu GitHub (sem terminal)
 
 1. Extraia o .zip que o Claude te mandou.
-2. No repositório **NutriSnap** que você criou no GitHub, clique em
+2. No repositório **NutriSnap**, apague os arquivos antigos e clique em
    **"Add file" → "Upload files"**.
 3. Arraste **todo o conteúdo** da pasta extraída (incluindo a pasta oculta
    `.github`) pra dentro da janela do navegador.
 4. Clique em **"Commit changes"**.
 
-> ⚠️ Atenção: pastas que começam com ponto (como `.github`) às vezes ficam
-> escondidas no seu explorador de arquivos. Ative "mostrar arquivos ocultos"
-> no Windows/Mac antes de arrastar, senão o workflow do Actions não sobe.
+## Como configurar o scanner de foto (Gemini)
 
-## Como pegar seu .apk pra instalar no celular
+1. Acesse https://aistudio.google.com/apikey e gere uma chave gratuita
+   (não precisa cartão de crédito).
+2. Dentro do app, vá em **Configurações** (ícone de engrenagem na Home) e
+   cole a chave no campo indicado.
+3. Pronto — o botão "Foto (IA)" dentro de cada refeição já vai funcionar.
 
-1. Depois de subir os arquivos, vá na aba **"Actions"** do seu repositório no
-   GitHub.
-2. Espere o workflow **"Build APK"** terminar (ícone verde ✅, leva uns 3-5
-   minutos).
-3. Clique no workflow finalizado → role até **"Artifacts"** → baixe
-   **"nutrisnap-apk"** (vem como .zip contendo o .apk).
-4. Transfira o .apk pro celular (Google Drive, e-mail, cabo USB) e instale
-   (talvez precise permitir "instalar de fontes desconhecidas" nas
-   configurações do Android).
+## Como pegar o .apk e testar (agora com link público!)
 
-## Como funciona o backup
+Antes o .apk ficava num "Artifact" que exigia login no GitHub. Agora ele sai
+como uma **Release pública**, com link direto — dá pra mandar pra qualquer
+pessoa testar, sem ela precisar entender nada de GitHub:
 
-- Na tela inicial, o botão **"Exportar"** gera um arquivo `nutrisnap_backup.json`
-  e abre o menu de compartilhamento do Android — o usuário pode mandar pra
-  si mesmo por e-mail, salvar no Google Drive, WhatsApp, etc.
-- O botão **"Importar"** deixa escolher esse arquivo de volta (útil ao trocar
-  de celular ou reinstalar o app) e restaura todos os dados.
+1. Depois de subir os arquivos, vá na aba **"Actions"** e espere o build
+   terminar (3-6 min).
+2. Vá na aba **"Releases"** do repositório (ou acesse
+   `https://github.com/SEU_USUARIO/NutriSnap/releases`).
+3. A release mais recente vai ter o arquivo **NutriSnap.apk** — esse link é
+   público, qualquer um com o link consegue baixar direto no navegador do
+   celular, sem precisar de conta no GitHub.
+4. Instale (pode pedir pra permitir "fontes desconhecidas" no Android).
 
 ## Próxima etapa
 
-Diário de refeições + integração com a API do Gemini pro reconhecimento de
-alimentos por foto.
+Ajustes finos de layout e polish visual, conforme o que você for testando.

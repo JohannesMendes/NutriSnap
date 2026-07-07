@@ -14,16 +14,17 @@ dependencies:
   # Armazenamento 100% local (sem servidor, sem custo)
   hive: ^2.2.3
   hive_flutter: ^1.1.0
-  path_provider: ^2.1.2
 
-  # Backup manual (exportar/importar JSON)
-  share_plus: ^7.2.2
-  file_picker: ^6.2.0
+  # Notificações locais (lembretes de água/refeição)
+  flutter_local_notifications: ^17.0.0
+  timezone: ^0.9.2
+  permission_handler: ^11.3.0
 
-  # Câmera e imagem (registro de refeições e fotos diárias)
+  # Câmera, foto e galeria de evolução visual
   image_picker: ^1.0.7
+  gal: ^2.3.0
 
-  # Chamada HTTP pra API de IA (Gemini)
+  # Chamada HTTP pra API do Gemini (scanner de prato)
   http: ^1.2.0
 
   # Gerenciamento de estado simples

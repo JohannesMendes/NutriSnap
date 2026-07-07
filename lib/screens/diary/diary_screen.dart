@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../models/meal.dart';
+import '../../models/user_profile.dart';
 import '../../services/local_storage_service.dart';
 import 'add_food_dialog.dart';
+import '../scan/photo_scan_screen.dart';
 
 class DiaryScreen extends StatefulWidget {
   const DiaryScreen({super.key});
@@ -14,24 +16,38 @@ class DiaryScreen extends StatefulWidget {
 class _DiaryScreenState extends State<DiaryScreen> {
   final _date = DateTime.now();
   late List<Meal> _meals;
+  int _water = 0;
+  DailyTargets? _targets;
 
   @override
   void initState() {
     super.initState();
+    _reload();
+  }
+
+  void _reload() {
     _meals = LocalStorageService.loadMealsForDate(_date);
+    _water = LocalStorageService.loadWaterForDate(_date);
+    _targets = LocalStorageService.loadTargets();
   }
 
   Future<void> _persist() async {
     await LocalStorageService.saveMealsForDate(_date, _meals);
   }
 
-  Future<void> _addFood(Meal meal) async {
-    final entry = await showDialog(
-      context: context,
-      builder: (_) => const AddFoodDialog(),
-    );
+  Future<void> _addFoodManual(Meal meal) async {
+    final entry = await showDialog(context: context, builder: (_) => const AddFoodDialog());
     if (entry == null) return;
     setState(() => meal.entries.add(entry));
+    _persist();
+  }
+
+  Future<void> _addFoodByPhoto(Meal meal) async {
+    final entries = await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const PhotoScanScreen()),
+    );
+    if (entries == null || (entries as List).isEmpty) return;
+    setState(() => meal.entries.addAll(entries.cast()));
     _persist();
   }
 
@@ -52,10 +68,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
           decoration: const InputDecoration(hintText: 'Ex: Lanche da tarde, Ceia...'),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancelar'),
-          ),
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(controller.text),
             child: const Text('Criar'),
@@ -74,40 +87,111 @@ class _DiaryScreenState extends State<DiaryScreen> {
     _persist();
   }
 
-  int get _totalCalories => _meals.fold(0, (sum, m) => sum + m.totalCalories);
+  int get _consumedCalories => _meals.fold(0, (sum, m) => sum + m.totalCalories);
+  double get _consumedProtein => _meals.fold(0.0, (sum, m) => sum + m.totalProtein);
+  double get _consumedCarbs => _meals.fold(0.0, (sum, m) => sum + m.totalCarbs);
+  double get _consumedFat => _meals.fold(0.0, (sum, m) => sum + m.totalFat);
 
   @override
   Widget build(BuildContext context) {
+    final targets = _targets;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Diário de refeições')),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
+      body: Column(
         children: [
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Total do dia', style: TextStyle(color: AppColors.textSecondary)),
-                  Text('$_totalCalories kcal',
-                      style: const TextStyle(
-                          fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.primary)),
-                ],
-              ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+              children: [
+                ..._meals.map((meal) => _MealCard(
+                      meal: meal,
+                      onAddFoodManual: () => _addFoodManual(meal),
+                      onAddFoodByPhoto: () => _addFoodByPhoto(meal),
+                      onRemoveFood: (id) => _removeFood(meal, id),
+                    )),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: _addCustomMeal,
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Nova refeição personalizada'),
+                ),
+                const SizedBox(height: 12),
+              ],
             ),
           ),
-          const SizedBox(height: 16),
-          ..._meals.map((meal) => _MealCard(
-                meal: meal,
-                onAddFood: () => _addFood(meal),
-                onRemoveFood: (id) => _removeFood(meal, id),
-              )),
-          const SizedBox(height: 12),
-          OutlinedButton.icon(
-            onPressed: _addCustomMeal,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Nova refeição personalizada'),
+          if (targets != null)
+            _RemainingBar(
+              consumedCalories: _consumedCalories,
+              targetCalories: targets.calories,
+              consumedProtein: _consumedProtein,
+              targetProtein: targets.proteinG.toDouble(),
+              consumedCarbs: _consumedCarbs,
+              targetCarbs: targets.carbsG.toDouble(),
+              consumedFat: _consumedFat,
+              targetFat: targets.fatG.toDouble(),
+              water: _water,
+              targetWater: targets.waterMl,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Barra fixa embaixo mostrando [Meta] - [Consumido] = [Falta], sempre visível.
+class _RemainingBar extends StatelessWidget {
+  final int consumedCalories, targetCalories, water, targetWater;
+  final double consumedProtein, targetProtein, consumedCarbs, targetCarbs, consumedFat, targetFat;
+
+  const _RemainingBar({
+    required this.consumedCalories,
+    required this.targetCalories,
+    required this.consumedProtein,
+    required this.targetProtein,
+    required this.consumedCarbs,
+    required this.targetCarbs,
+    required this.consumedFat,
+    required this.targetFat,
+    required this.water,
+    required this.targetWater,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final remainingCal = targetCalories - consumedCalories;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 20),
+      decoration: const BoxDecoration(
+        color: AppColors.surface,
+        border: Border(top: BorderSide(color: AppColors.surfaceLight, width: 1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Faltam pra hoje', style: TextStyle(color: AppColors.textSecondary)),
+              Text(
+                remainingCal >= 0 ? '$remainingCal kcal' : 'Meta batida ✅',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: remainingCal >= 0 ? AppColors.primary : AppColors.secondary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _MiniStat('P', targetProtein - consumedProtein, AppColors.secondary),
+              _MiniStat('C', targetCarbs - consumedCarbs, AppColors.primary),
+              _MiniStat('G', targetFat - consumedFat, AppColors.danger),
+              _MiniStat('💧', (targetWater - water).toDouble(), AppColors.water, unit: 'ml'),
+            ],
           ),
         ],
       ),
@@ -115,14 +199,37 @@ class _DiaryScreenState extends State<DiaryScreen> {
   }
 }
 
+class _MiniStat extends StatelessWidget {
+  final String label;
+  final double remaining;
+  final Color color;
+  final String unit;
+  const _MiniStat(this.label, this.remaining, this.color, {this.unit = 'g'});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+        Text(
+          remaining > 0 ? '${remaining.toStringAsFixed(0)}$unit' : '✓',
+          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+        ),
+      ],
+    );
+  }
+}
+
 class _MealCard extends StatelessWidget {
   final Meal meal;
-  final VoidCallback onAddFood;
+  final VoidCallback onAddFoodManual;
+  final VoidCallback onAddFoodByPhoto;
   final void Function(String entryId) onRemoveFood;
 
   const _MealCard({
     required this.meal,
-    required this.onAddFood,
+    required this.onAddFoodManual,
+    required this.onAddFoodByPhoto,
     required this.onRemoveFood,
   });
 
@@ -138,8 +245,7 @@ class _MealCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(meal.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-              Text('${meal.totalCalories} kcal',
-                  style: const TextStyle(color: AppColors.textSecondary)),
+              Text('${meal.totalCalories} kcal', style: const TextStyle(color: AppColors.textSecondary)),
             ],
           ),
           children: [
@@ -157,10 +263,24 @@ class _MealCard extends StatelessWidget {
                 )),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: OutlinedButton.icon(
-                onPressed: onAddFood,
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Adicionar alimento'),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: onAddFoodManual,
+                      icon: const Icon(Icons.edit_rounded, size: 16),
+                      label: const Text('Manual'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: onAddFoodByPhoto,
+                      icon: const Icon(Icons.camera_alt_rounded, size: 16),
+                      label: const Text('Foto (IA)'),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

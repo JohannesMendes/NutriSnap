@@ -3,9 +3,10 @@ import '../../theme/app_theme.dart';
 import '../../services/local_storage_service.dart';
 import '../../models/user_profile.dart';
 import '../diary/diary_screen.dart';
+import '../settings/settings_screen.dart';
 
-/// Tela inicial: resumo do dia (consumido vs meta) + acesso ao diário e
-/// ao backup manual.
+/// Tela inicial: resumo do dia (consumido vs meta), contador de água e
+/// acesso ao diário/configurações.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -14,37 +15,16 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  bool _working = false;
+  final _today = DateTime.now();
 
   int get _consumedToday {
-    final meals = LocalStorageService.loadMealsForDate(DateTime.now());
+    final meals = LocalStorageService.loadMealsForDate(_today);
     return meals.fold(0, (sum, m) => sum + m.totalCalories);
   }
 
-  Future<void> _export() async {
-    setState(() => _working = true);
-    try {
-      await LocalStorageService.exportBackup();
-    } finally {
-      if (mounted) setState(() => _working = false);
-    }
-  }
-
-  Future<void> _import() async {
-    setState(() => _working = true);
-    try {
-      final ok = await LocalStorageService.importBackup();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(ok
-              ? 'Backup restaurado! Reinicie o app pra ver os dados.'
-              : 'Nenhum arquivo selecionado.'),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _working = false);
-    }
+  Future<void> _addWater(int ml) async {
+    await LocalStorageService.addWater(_today, ml);
+    setState(() {});
   }
 
   @override
@@ -54,9 +34,21 @@ class _HomeScreenState extends State<HomeScreen> {
     final target = targets?.calories ?? 0;
     final remaining = target - consumed;
     final progress = target > 0 ? (consumed / target).clamp(0.0, 1.0) : 0.0;
+    final water = LocalStorageService.loadWaterForDate(_today);
+    final waterTarget = targets?.waterMl ?? 2000;
+    final waterProgress = waterTarget > 0 ? (water / waterTarget).clamp(0.0, 1.0) : 0.0;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Hoje')),
+      appBar: AppBar(
+        title: const Text('Hoje'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
@@ -85,14 +77,49 @@ class _HomeScreenState extends State<HomeScreen> {
                           style: const TextStyle(color: AppColors.textSecondary)),
                       Text(
                         target > 0
-                            ? (remaining >= 0
-                                ? '$remaining kcal restantes'
-                                : '${-remaining} kcal acima da meta')
+                            ? (remaining >= 0 ? '$remaining kcal restantes' : '${-remaining} kcal acima')
                             : 'Meta não calculada',
-                        style: TextStyle(
-                          color: remaining < 0 ? AppColors.danger : AppColors.textSecondary,
-                        ),
+                        style: TextStyle(color: remaining < 0 ? AppColors.danger : AppColors.textSecondary),
                       ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('💧 Água', style: Theme.of(context).textTheme.titleMedium),
+                      Text('$water / $waterTarget ml',
+                          style: const TextStyle(color: AppColors.textSecondary)),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: waterProgress,
+                      minHeight: 10,
+                      backgroundColor: AppColors.surfaceLight,
+                      valueColor: const AlwaysStoppedAnimation(AppColors.water),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      _WaterButton(label: '+200ml', onTap: () => _addWater(200)),
+                      const SizedBox(width: 8),
+                      _WaterButton(label: '+300ml', onTap: () => _addWater(300)),
+                      const SizedBox(width: 8),
+                      _WaterButton(label: '+500ml', onTap: () => _addWater(500)),
                     ],
                   ),
                 ],
@@ -107,47 +134,21 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: const Icon(Icons.restaurant_menu_rounded),
             label: const Text('Abrir diário de refeições'),
           ),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Backup dos dados', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Seus dados ficam salvos só neste aparelho. Exporte um '
-                    'backup de vez em quando pra não perder nada ao trocar '
-                    'de celular.',
-                    style: TextStyle(color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _working ? null : _export,
-                          icon: const Icon(Icons.upload_rounded),
-                          label: const Text('Exportar'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _working ? null : _import,
-                          icon: const Icon(Icons.download_rounded),
-                          label: const Text('Importar'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
+    );
+  }
+}
+
+class _WaterButton extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _WaterButton({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: OutlinedButton(onPressed: onTap, child: Text(label)),
     );
   }
 }
