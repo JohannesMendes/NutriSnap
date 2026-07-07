@@ -54,7 +54,7 @@ class LocalStorageService {
   /// Deixa o usuário escolher um arquivo .json de backup e restaura os
   /// dados a partir dele.
   static Future<bool> importBackup() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['json'],
     );
