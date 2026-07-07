@@ -20,9 +20,6 @@ dependencies:
   share_plus: ^7.2.2
   file_picker: ^6.2.0
 
-  # Notificações locais (lembretes de água/refeição)
-  flutter_local_notifications: ^17.0.0
-
   # Câmera e imagem (registro de refeições e fotos diárias)
   image_picker: ^1.0.7
 
@@ -42,5 +39,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  assets:
-    - assets/
