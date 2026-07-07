@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/user_profile.dart';
 import '../models/meal.dart';
+import '../config/app_config.dart';
 
 /// Guarda todos os dados do app direto no aparelho (Hive), sem servidor
 /// e sem nenhuma configuração externa — persistência 100% local e
@@ -104,7 +105,19 @@ class LocalStorageService {
     await box.put('gemini_api_key', key);
   }
 
-  static String? loadGeminiApiKey() => Hive.box(_profileBox).get('gemini_api_key');
+  static String? loadGeminiApiKey() {
+    final userKey = Hive.box(_profileBox).get('gemini_api_key') as String?;
+    if (userKey != null && userKey.isNotEmpty) return userKey;
+    // Sem chave própria salva -> usa a chave de testes embutida no build
+    // (injetada via --dart-define, não fica no código-fonte).
+    return kBuiltInGeminiApiKey.isNotEmpty ? kBuiltInGeminiApiKey : null;
+  }
+
+  /// Indica se a chave em uso é a própria do usuário (não a de testes).
+  static bool hasCustomGeminiApiKey() {
+    final userKey = Hive.box(_profileBox).get('gemini_api_key') as String?;
+    return userKey != null && userKey.isNotEmpty;
+  }
 
   /// Horários dos lembretes, salvos como "HH:mm". Chaves: breakfast, lunch,
   /// dinner, water_start, water_end, water_interval_hours.

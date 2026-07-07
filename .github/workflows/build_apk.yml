@@ -22,7 +22,7 @@ jobs:
           channel: 'stable'
 
       - name: Gerar pastas nativas (android/ios) se não existirem
-        run: flutter create . --platforms=android --org com.nutrisnap --project-name nutrisnap
+        run: flutter create . --platforms=android --org com.nutrisnap --project-name nutrisnap --overwrite
 
       - name: Ativar core library desugaring (necessário pra notificações)
         shell: python3 {0}
@@ -59,19 +59,24 @@ jobs:
           )
           if "desugar_jdk_libs" not in content:
               if re.search(r"dependencies\s*\{\s*\}", content):
+                  # Bloco existe e está vazio -> preenche
                   content = re.sub(
                       r"dependencies\s*\{\s*\}",
                       "dependencies {\n" + dep_line + "}",
                       content,
                       count=1,
                   )
-              else:
+              elif re.search(r"dependencies\s*\{", content):
+                  # Bloco existe e já tem conteúdo -> insere a primeira linha
                   content = re.sub(
                       r"(dependencies\s*\{\n)",
                       r"\1" + dep_line,
                       content,
                       count=1,
                   )
+              else:
+                  # Bloco não existe (comum nos templates novos do Flutter) -> cria do zero no fim do arquivo
+                  content = content.rstrip() + "\n\ndependencies {\n" + dep_line + "}\n"
 
           with open(path, "w") as f:
               f.write(content)
@@ -85,7 +90,7 @@ jobs:
         run: flutter pub upgrade --major-versions
 
       - name: Compilar o APK (release)
-        run: flutter build apk --release
+        run: flutter build apk --release --dart-define=GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
 
       - name: Renomear o APK com a versão do build
         run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/NutriSnap.apk

@@ -54,6 +54,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           Text('Scanner de foto (IA)', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
+          if (!LocalStorageService.hasCustomGeminiApiKey())
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                color: AppColors.surfaceLight,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Text(
+                '✓ Usando a chave de testes já configurada no app. '
+                'Só preencha abaixo se quiser usar sua própria chave.',
+                style: TextStyle(color: AppColors.primary, fontSize: 12),
+              ),
+            ),
           const Text(
             'Cole aqui sua chave gratuita da API do Gemini (Google AI Studio) '
             'pra usar o reconhecimento de alimentos por foto.',
