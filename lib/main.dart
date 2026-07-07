@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'theme/app_theme.dart';
-import 'screens/auth/login_screen.dart';
-import 'firebase_options.dart';
+import 'services/local_storage_service.dart';
+import 'screens/onboarding/goal_calculator_screen.dart';
+import 'screens/home/home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // IMPORTANTE: preencha lib/firebase_options.dart com os dados do SEU
-  // projeto Firebase antes de compilar (instruções no README).
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Inicializa o armazenamento local (Hive) — tudo fica salvo no aparelho,
+  // sem nenhum servidor externo.
+  await LocalStorageService.init();
 
   runApp(const NutriSnapApp());
 }
@@ -21,13 +19,17 @@ class NutriSnapApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Se já existe um perfil salvo localmente, vai direto pra Home.
+    // Senão, mostra a calculadora de metas (que funciona como onboarding).
+    final hasProfile = LocalStorageService.hasProfile();
+
     return MaterialApp(
       title: 'NutriSnap',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.dark,
       darkTheme: AppTheme.dark,
       themeMode: ThemeMode.dark,
-      home: const LoginScreen(),
+      home: hasProfile ? const HomeScreen() : const GoalCalculatorScreen(),
     );
   }
 }

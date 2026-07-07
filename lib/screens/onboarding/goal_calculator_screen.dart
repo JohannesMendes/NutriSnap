@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../models/user_profile.dart';
 import '../../utils/calculator.dart';
+import '../../services/local_storage_service.dart';
 import '../home/home_screen.dart';
 
 class GoalCalculatorScreen extends StatefulWidget {
@@ -48,6 +49,7 @@ class _GoalCalculatorScreenState extends State<GoalCalculatorScreen> {
     );
 
     setState(() => _result = GoalCalculator.calculate(profile));
+    LocalStorageService.saveProfile(profile);
   }
 
   @override

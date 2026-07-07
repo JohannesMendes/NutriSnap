@@ -11,10 +11,14 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.6
 
-  # Firebase (Auth + Banco de dados)
-  firebase_core: ^2.27.0
-  firebase_auth: ^4.17.4
-  cloud_firestore: ^4.15.5
+  # Armazenamento 100% local (sem servidor, sem custo)
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  path_provider: ^2.1.2
+
+  # Backup manual (exportar/importar JSON)
+  share_plus: ^7.2.2
+  file_picker: ^6.2.0
 
   # Notificações locais (lembretes de água/refeição)
   flutter_local_notifications: ^17.0.0
@@ -27,9 +31,6 @@ dependencies:
 
   # Gerenciamento de estado simples
   provider: ^6.1.2
-
-  # Armazenamento local leve (cache, preferências)
-  shared_preferences: ^2.2.2
 
   # Ícones e fontes modernas
   google_fonts: ^6.1.0
