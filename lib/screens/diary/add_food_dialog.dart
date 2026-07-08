@@ -28,6 +28,7 @@ class _AddFoodDialogState extends State<AddFoodDialog> {
   bool _showManualFields = false;
   bool _askingGrams = false;
   String? _hintText;
+  List<String> _suggestions = [];
 
   void _onNameChanged(String value) {
     setState(() {
@@ -35,8 +36,10 @@ class _AddFoodDialogState extends State<AddFoodDialog> {
       _hintText = null;
       if (value.trim().isEmpty) {
         _showManualFields = false;
+        _suggestions = [];
         return;
       }
+      _suggestions = FoodEstimator.isKnown(value) ? [] : FoodEstimator.suggestions(value);
       if (FoodEstimator.isKnown(value)) {
         if (FoodEstimator.isSimpleFood(value)) {
           _hintText = 'Reconhecido — vou calcular uma porção padrão automaticamente.';
@@ -49,6 +52,11 @@ class _AddFoodDialogState extends State<AddFoodDialog> {
         _showManualFields = true;
       }
     });
+  }
+
+  void _pickSuggestion(String name) {
+    _nameCtrl.text = name;
+    _onNameChanged(name);
   }
 
   void _confirmSmart({double? grams}) {
@@ -98,6 +106,19 @@ class _AddFoodDialogState extends State<AddFoodDialog> {
             if (_hintText != null) ...[
               const SizedBox(height: 8),
               Text(_hintText!, style: const TextStyle(color: AppColors.primary, fontSize: 12)),
+            ],
+            if (_suggestions.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: _suggestions
+                    .map((s) => ActionChip(
+                          label: Text(s),
+                          onPressed: () => _pickSuggestion(s),
+                        ))
+                    .toList(),
+              ),
             ],
             if (_askingGrams) ...[
               const SizedBox(height: 14),

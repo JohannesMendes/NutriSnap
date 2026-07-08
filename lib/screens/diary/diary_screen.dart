@@ -7,14 +7,15 @@ import 'add_food_dialog.dart';
 import '../scan/photo_scan_screen.dart';
 
 class DiaryScreen extends StatefulWidget {
-  const DiaryScreen({super.key});
+  final DateTime? date;
+  const DiaryScreen({super.key, this.date});
 
   @override
   State<DiaryScreen> createState() => _DiaryScreenState();
 }
 
 class _DiaryScreenState extends State<DiaryScreen> {
-  final _date = DateTime.now();
+  late final DateTime _date = widget.date ?? DateTime.now();
   late List<Meal> _meals;
   int _water = 0;
   DailyTargets? _targets;
@@ -92,12 +93,20 @@ class _DiaryScreenState extends State<DiaryScreen> {
   double get _consumedCarbs => _meals.fold(0.0, (sum, m) => sum + m.totalCarbs);
   double get _consumedFat => _meals.fold(0.0, (sum, m) => sum + m.totalFat);
 
+  bool _isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
   @override
   Widget build(BuildContext context) {
     final targets = _targets;
 
+    final isToday = _isSameDay(_date, DateTime.now());
     return Scaffold(
-      appBar: AppBar(title: const Text('Diário de refeições')),
+      appBar: AppBar(
+        title: Text(isToday
+            ? 'Diário de refeições'
+            : 'Diário de ${_date.day.toString().padLeft(2, '0')}/${_date.month.toString().padLeft(2, '0')}'),
+      ),
       body: Column(
         children: [
           Expanded(

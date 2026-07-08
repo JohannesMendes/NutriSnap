@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../services/local_storage_service.dart';
 import '../../models/user_profile.dart';
 import '../diary/diary_screen.dart';
 import '../settings/settings_screen.dart';
+import '../history/history_screen.dart';
 
 /// Tela inicial: resumo do dia (consumido vs meta), contador de água e
 /// acesso ao diário/configurações.
@@ -14,8 +16,43 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  final _today = DateTime.now();
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+  DateTime _today = DateTime.now();
+  Timer? _midnightCheckTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Verifica a cada minuto se a data virou (cobre o caso do app ficar
+    // aberto passando da meia-noite, sem precisar sair e voltar).
+    _midnightCheckTimer = Timer.periodic(const Duration(minutes: 1), (_) => _checkDayRollover());
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _midnightCheckTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Cobre o caso do celular ficar no bolso/tela bloqueada e o usuário
+    // voltar pro app já no dia seguinte.
+    if (state == AppLifecycleState.resumed) _checkDayRollover();
+  }
+
+  void _checkDayRollover() {
+    final now = DateTime.now();
+    final changed = now.year != _today.year || now.month != _today.month || now.day != _today.day;
+    if (changed && mounted) {
+      // O dia anterior já está salvo com sua própria chave (ver
+      // LocalStorageService) — não precisa "arquivar" nada explicitamente,
+      // só resetar o que a tela mostra pro novo dia.
+      setState(() => _today = now);
+    }
+  }
 
   int get _consumedToday {
     final meals = LocalStorageService.loadMealsForDate(_today);
@@ -133,6 +170,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 .then((_) => setState(() {})),
             icon: const Icon(Icons.restaurant_menu_rounded),
             label: const Text('Abrir diário de refeições'),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const HistoryScreen())),
+            icon: const Icon(Icons.calendar_month_rounded),
+            label: const Text('Ver histórico de dias anteriores'),
           ),
         ],
       ),

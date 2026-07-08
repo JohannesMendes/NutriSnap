@@ -157,4 +157,32 @@ class LocalStorageService {
     await box.put(_dayKey(date), jsonEncode(meals.map((m) => m.toMap()).toList()));
   }
 
+  /// Retorna as datas (mais recentes primeiro) que já têm pelo menos um
+  /// alimento registrado — é o que alimenta a tela de Histórico. Cada dia
+  /// já fica salvo com sua própria chave desde o início, então "arquivar"
+  /// é automático: só precisamos listar o que já existe.
+  static List<DateTime> loadDiaryDatesWithEntries() {
+    final box = Hive.box(_diaryBox);
+    final dateKeyPattern = RegExp(r'^\d{4}-\d{1,2}-\d{1,2}$');
+    final dates = <DateTime>[];
+    for (final k in box.keys) {
+      final key = k.toString();
+      if (!dateKeyPattern.hasMatch(key)) continue;
+      final raw = box.get(key);
+      if (raw == null) continue;
+      try {
+        final list = jsonDecode(raw) as List;
+        final meals = list.map((m) => Meal.fromMap(Map<String, dynamic>.from(m))).toList();
+        final hasFood = meals.any((m) => m.entries.isNotEmpty);
+        if (hasFood) {
+          final parts = key.split('-');
+          dates.add(DateTime(int.parse(parts[0]), int.parse(parts[1]), int.parse(parts[2])));
+        }
+      } catch (_) {
+        // Chave inesperada — ignora.
+      }
+    }
+    dates.sort((a, b) => b.compareTo(a));
+    return dates;
+  }
 }

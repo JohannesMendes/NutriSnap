@@ -19,11 +19,69 @@ class PhotoScanScreen extends StatefulWidget {
   State<PhotoScanScreen> createState() => _PhotoScanScreenState();
 }
 
+/// Uma linha editável de resultado da IA: mantém os próprios controllers
+/// pra permitir corrigir nome, peso e macros antes de confirmar o envio
+/// ao diário.
+class _EditableEntry {
+  final String id;
+  final TextEditingController name;
+  final TextEditingController grams;
+  final TextEditingController calories;
+  final TextEditingController protein;
+  final TextEditingController carbs;
+  final TextEditingController fat;
+
+  _EditableEntry.fromFoodEntry(FoodEntry e)
+      : id = e.id,
+        name = TextEditingController(text: e.name),
+        grams = TextEditingController(text: e.grams.toStringAsFixed(0)),
+        calories = TextEditingController(text: e.calories.toString()),
+        protein = TextEditingController(text: e.proteinG.toStringAsFixed(1)),
+        carbs = TextEditingController(text: e.carbsG.toStringAsFixed(1)),
+        fat = TextEditingController(text: e.fatG.toStringAsFixed(1));
+
+  _EditableEntry.blank()
+      : id = DateTime.now().microsecondsSinceEpoch.toString(),
+        name = TextEditingController(),
+        grams = TextEditingController(),
+        calories = TextEditingController(),
+        protein = TextEditingController(),
+        carbs = TextEditingController(),
+        fat = TextEditingController();
+
+  FoodEntry toFoodEntry() => FoodEntry(
+        id: id,
+        name: name.text.trim().isEmpty ? 'Alimento' : name.text.trim(),
+        grams: double.tryParse(grams.text.replaceAll(',', '.')) ?? 0,
+        calories: int.tryParse(calories.text) ?? 0,
+        proteinG: double.tryParse(protein.text.replaceAll(',', '.')) ?? 0,
+        carbsG: double.tryParse(carbs.text.replaceAll(',', '.')) ?? 0,
+        fatG: double.tryParse(fat.text.replaceAll(',', '.')) ?? 0,
+      );
+
+  void dispose() {
+    name.dispose();
+    grams.dispose();
+    calories.dispose();
+    protein.dispose();
+    carbs.dispose();
+    fat.dispose();
+  }
+}
+
 class _PhotoScanScreenState extends State<PhotoScanScreen> {
   File? _photo;
   bool _loading = false;
   String? _error;
-  List<FoodEntry> _results = [];
+  List<_EditableEntry> _editable = [];
+
+  @override
+  void dispose() {
+    for (final e in _editable) {
+      e.dispose();
+    }
+    super.dispose();
+  }
 
   Future<void> _takePhoto() async {
     final apiKey = LocalStorageService.loadGeminiApiKey();
@@ -58,7 +116,10 @@ class _PhotoScanScreenState extends State<PhotoScanScreen> {
       _photo = file;
       _loading = true;
       _error = null;
-      _results = [];
+      for (final e in _editable) {
+        e.dispose();
+      }
+      _editable = [];
     });
 
     // Pergunta se pode salvar a foto na galeria (pasta dedicada do app),
@@ -78,24 +139,41 @@ class _PhotoScanScreenState extends State<PhotoScanScreen> {
       final bytes = await file.readAsBytes();
       final base64Image = base64Encode(bytes);
       final raw = await GeminiService.analyzeFoodPhoto(apiKey: apiKey, base64Image: base64Image);
+      final parsed = raw
+          .map((m) => FoodEntry(
+                id: '${DateTime.now().microsecondsSinceEpoch}_${m['name']}',
+                name: m['name'] ?? 'Alimento',
+                grams: (m['grams'] as num?)?.toDouble() ?? 0,
+                calories: (m['calories'] as num?)?.round() ?? 0,
+                proteinG: (m['protein_g'] as num?)?.toDouble() ?? 0,
+                carbsG: (m['carbs_g'] as num?)?.toDouble() ?? 0,
+                fatG: (m['fat_g'] as num?)?.toDouble() ?? 0,
+              ))
+          .toList();
       setState(() {
-        _results = raw
-            .map((m) => FoodEntry(
-                  id: '${DateTime.now().microsecondsSinceEpoch}_${m['name']}',
-                  name: m['name'] ?? 'Alimento',
-                  grams: (m['grams'] as num?)?.toDouble() ?? 0,
-                  calories: (m['calories'] as num?)?.round() ?? 0,
-                  proteinG: (m['protein_g'] as num?)?.toDouble() ?? 0,
-                  carbsG: (m['carbs_g'] as num?)?.toDouble() ?? 0,
-                  fatG: (m['fat_g'] as num?)?.toDouble() ?? 0,
-                ))
-            .toList();
+        _editable = parsed.map((e) => _EditableEntry.fromFoodEntry(e)).toList();
       });
     } catch (e) {
       setState(() => _error = 'Não consegui analisar a foto: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _removeRow(_EditableEntry entry) {
+    setState(() {
+      _editable.remove(entry);
+      entry.dispose();
+    });
+  }
+
+  void _addBlankRow() {
+    setState(() => _editable.add(_EditableEntry.blank()));
+  }
+
+  void _confirmAndSave() {
+    final entries = _editable.map((e) => e.toFoodEntry()).toList();
+    Navigator.of(context).pop(entries);
   }
 
   @override
@@ -110,7 +188,7 @@ class _PhotoScanScreenState extends State<PhotoScanScreen> {
             if (_photo != null)
               ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: Image.file(_photo!, height: 220, fit: BoxFit.cover),
+                child: Image.file(_photo!, height: 180, fit: BoxFit.cover),
               ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
@@ -133,28 +211,124 @@ class _PhotoScanScreenState extends State<PhotoScanScreen> {
                 ),
               ),
             if (_error != null) Text(_error!, style: const TextStyle(color: AppColors.danger)),
-            if (_results.isNotEmpty)
+            if (!_loading && _editable.isNotEmpty)
               Expanded(
                 child: ListView(
                   children: [
-                    const Text('Identificado pela IA:', style: TextStyle(color: AppColors.textSecondary)),
-                    const SizedBox(height: 8),
-                    ..._results.map((e) => Card(
-                          child: ListTile(
-                            title: Text(e.name),
-                            subtitle: Text(
-                              '${e.grams.toStringAsFixed(0)}g · ${e.calories} kcal · P:${e.proteinG.toStringAsFixed(0)}g C:${e.carbsG.toStringAsFixed(0)}g G:${e.fatG.toStringAsFixed(0)}g',
-                            ),
-                          ),
-                        )),
+                    const Text(
+                      'Confira e corrija antes de salvar:',
+                      style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'A IA pode errar — ajuste nome, peso ou macros, remova o que estiver errado ou adicione o que ela esqueceu.',
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                    ),
                     const SizedBox(height: 12),
+                    ..._editable.map((entry) => _EditableFoodCard(
+                          key: ValueKey(entry.id),
+                          entry: entry,
+                          onRemove: () => _removeRow(entry),
+                        )),
+                    const SizedBox(height: 4),
+                    OutlinedButton.icon(
+                      onPressed: _addBlankRow,
+                      icon: const Icon(Icons.add_rounded, size: 18),
+                      label: const Text('Adicionar item que a IA esqueceu'),
+                    ),
+                    const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: () => Navigator.of(context).pop(_results),
-                      child: const Text('Adicionar tudo ao diário'),
+                      onPressed: _editable.isEmpty ? null : _confirmAndSave,
+                      child: const Text('Confirmar e salvar no diário'),
                     ),
                   ],
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Card editável de um item identificado pela IA (ou adicionado manualmente
+/// nessa etapa de conferência). Nome + peso em uma linha, macros em outra.
+class _EditableFoodCard extends StatelessWidget {
+  final _EditableEntry entry;
+  final VoidCallback onRemove;
+
+  const _EditableFoodCard({required Key key, required this.entry, required this.onRemove}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: TextField(
+                    controller: entry.name,
+                    decoration: const InputDecoration(labelText: 'Alimento', isDense: true),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 1,
+                  child: TextField(
+                    controller: entry.grams,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'g', isDense: true),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: AppColors.textSecondary),
+                  onPressed: onRemove,
+                  tooltip: 'Remover item',
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: entry.calories,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'kcal', isDense: true),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: TextField(
+                    controller: entry.protein,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'P (g)', isDense: true),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: TextField(
+                    controller: entry.carbs,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'C (g)', isDense: true),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: TextField(
+                    controller: entry.fat,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'G (g)', isDense: true),
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
