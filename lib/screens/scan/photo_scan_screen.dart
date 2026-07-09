@@ -139,17 +139,25 @@ class _PhotoScanScreenState extends State<PhotoScanScreen> {
       final bytes = await file.readAsBytes();
       final base64Image = base64Encode(bytes);
       final raw = await GeminiService.analyzeFoodPhoto(apiKey: apiKey, base64Image: base64Image);
-      final parsed = raw
-          .map((m) => FoodEntry(
-                id: '${DateTime.now().microsecondsSinceEpoch}_${m['name']}',
-                name: m['name'] ?? 'Alimento',
-                grams: (m['grams'] as num?)?.toDouble() ?? 0,
-                calories: (m['calories'] as num?)?.round() ?? 0,
-                proteinG: (m['protein_g'] as num?)?.toDouble() ?? 0,
-                carbsG: (m['carbs_g'] as num?)?.toDouble() ?? 0,
-                fatG: (m['fat_g'] as num?)?.toDouble() ?? 0,
-              ))
-          .toList();
+      final parsed = raw.map((m) {
+        final baseName = (m['name'] ?? 'Alimento').toString();
+        final quantity = (m['quantity'] as num?)?.toInt();
+        final unit = (m['unit'] as String?)?.trim();
+        // Mostra a contagem que a IA usou junto do nome (ex: "Pão de forma
+        // (3 fatia)"), pra ficar óbvio de conferir se ela contou certo.
+        final displayName = (quantity != null && quantity > 1 && unit != null && unit.isNotEmpty)
+            ? '$baseName ($quantity $unit)'
+            : baseName;
+        return FoodEntry(
+          id: '${DateTime.now().microsecondsSinceEpoch}_$baseName',
+          name: displayName,
+          grams: (m['grams'] as num?)?.toDouble() ?? 0,
+          calories: (m['calories'] as num?)?.round() ?? 0,
+          proteinG: (m['protein_g'] as num?)?.toDouble() ?? 0,
+          carbsG: (m['carbs_g'] as num?)?.toDouble() ?? 0,
+          fatG: (m['fat_g'] as num?)?.toDouble() ?? 0,
+        );
+      }).toList();
       setState(() {
         _editable = parsed.map((e) => _EditableEntry.fromFoodEntry(e)).toList();
       });
