@@ -1,0 +1,110 @@
+name: Build APK
+
+# Roda automaticamente toda vez que você subir código na branch main,
+# e também permite rodar manualmente pela aba "Actions" no GitHub.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Baixar o código do repositório
+        uses: actions/checkout@v4
+
+      - name: Instalar o Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Gerar pasta nativa (android) sem tocar no código-fonte
+        run: |
+          flutter create --platforms=android --org com.nutrisnap --project-name nutrisnap /tmp/nutrisnap_scaffold
+          cp -r /tmp/nutrisnap_scaffold/android .
+
+      - name: Adicionar permissão de internet (necessária pro scanner de foto via IA)
+        run: |
+          sed -i 's#<manifest xmlns:android="http://schemas.android.com/apk/res/android">#<manifest xmlns:android="http://schemas.android.com/apk/res/android">\n    <uses-permission android:name="android.permission.INTERNET" />#' android/app/src/main/AndroidManifest.xml
+          grep -q "android.permission.INTERNET" android/app/src/main/AndroidManifest.xml && echo "Permissão adicionada com sucesso" || (echo "Falha ao adicionar permissão" && exit 1)
+
+      - name: Ativar core library desugaring (necessário pra notificações)
+        shell: python3 {0}
+        run: |
+          import re, os
+
+          kts_path = "android/app/build.gradle.kts"
+          groovy_path = "android/app/build.gradle"
+          is_kts = os.path.exists(kts_path)
+          path = kts_path if is_kts else groovy_path
+
+          with open(path, "r") as f:
+              content = f.read()
+
+          # 1. Habilita o desugaring dentro do bloco compileOptions
+          desugar_flag = (
+              "        isCoreLibraryDesugaringEnabled = true\n"
+              if is_kts else
+              "        coreLibraryDesugaringEnabled true\n"
+          )
+          if "CoreLibraryDesugaringEnabled" not in content:
+              content = re.sub(
+                  r"(compileOptions\s*\{\n)",
+                  r"\1" + desugar_flag,
+                  content,
+                  count=1,
+              )
+
+          # 2. Adiciona a lib de desugaring nas dependencies do módulo
+          dep_line = (
+              '    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")\n'
+              if is_kts else
+              "    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'\n"
+          )
+          if "desugar_jdk_libs" not in content:
+              if re.search(r"dependencies\s*\{\s*\}", content):
+                  # Bloco existe e está vazio -> preenche
+                  content = re.sub(
+                      r"dependencies\s*\{\s*\}",
+                      "dependencies {\n" + dep_line + "}",
+                      content,
+                      count=1,
+                  )
+              elif re.search(r"dependencies\s*\{", content):
+                  # Bloco existe e já tem conteúdo -> insere a primeira linha
+                  content = re.sub(
+                      r"(dependencies\s*\{\n)",
+                      r"\1" + dep_line,
+                      content,
+                      count=1,
+                  )
+              else:
+                  # Bloco não existe (comum nos templates novos do Flutter) -> cria do zero no fim do arquivo
+                  content = content.rstrip() + "\n\ndependencies {\n" + dep_line + "}\n"
+
+          with open(path, "w") as f:
+              f.write(content)
+
+          print(f"Patched {path}")
+
+      - name: Instalar dependências do projeto
+        run: flutter pub get
+
+      - name: Compilar o APK (release)
+        run: flutter build apk --release --dart-define=GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+
+      - name: Renomear o APK com a versão do build
+        run: cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/NutriSnap.apk
+
+      - name: Publicar release pública com link direto de download
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "NutriSnap — build ${{ github.run_number }}"
+          files: build/app/outputs/flutter-apk/NutriSnap.apk
+          body: "Build automático gerado a partir do commit ${{ github.sha }}."
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
