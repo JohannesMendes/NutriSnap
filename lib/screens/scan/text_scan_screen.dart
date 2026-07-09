@@ -1,39 +1,46 @@
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:gal/gal.dart';
 import '../../theme/app_theme.dart';
 import '../../services/gemini_service.dart';
 import '../../services/local_storage_service.dart';
 import '../settings/settings_screen.dart';
 import 'ai_review_widgets.dart';
 
-/// O core do app: tira foto do prato (de uma fruta a um prato completo),
-/// a IA (Gemini) identifica os alimentos, estima peso e macros, e o
-/// usuário confirma antes de jogar tudo pro diário.
-class PhotoScanScreen extends StatefulWidget {
-  const PhotoScanScreen({super.key});
+/// Entrada manual "inteligente": o usuário digita livremente o que comeu
+/// (ex: "4 fatias de pão de forma", "3 ovos mexidos e uma fatia de pão"),
+/// o texto é interpretado pela IA (Gemini, texto puro) e cai na mesma tela
+/// de conferência usada pelo scanner de foto — sem exigir que o usuário
+/// preencha macros na mão nem que o alimento exista em uma lista fixa.
+class TextScanScreen extends StatefulWidget {
+  const TextScanScreen({super.key});
 
   @override
-  State<PhotoScanScreen> createState() => _PhotoScanScreenState();
+  State<TextScanScreen> createState() => _TextScanScreenState();
 }
 
-class _PhotoScanScreenState extends State<PhotoScanScreen> {
-  File? _photo;
+class _TextScanScreenState extends State<TextScanScreen> {
+  final _descriptionCtrl = TextEditingController();
   bool _loading = false;
   String? _error;
   List<EditableEntry> _editable = [];
 
   @override
   void dispose() {
+    _descriptionCtrl.dispose();
     for (final e in _editable) {
       e.dispose();
     }
     super.dispose();
   }
 
-  Future<void> _takePhoto() async {
+  Future<void> _analyze() async {
+    final description = _descriptionCtrl.text.trim();
+    if (description.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Descreva o que você comeu, ex: "4 fatias de pão de forma".')),
+      );
+      return;
+    }
+
     final apiKey = LocalStorageService.loadGeminiApiKey();
     if (apiKey == null || apiKey.isEmpty) {
       if (!mounted) return;
@@ -43,8 +50,8 @@ class _PhotoScanScreenState extends State<PhotoScanScreen> {
           backgroundColor: AppColors.surface,
           title: const Text('Configure sua chave do Gemini'),
           content: const Text(
-            'Pra usar o scanner por foto, você precisa cadastrar uma chave '
-            'gratuita da API do Gemini nas Configurações.',
+            'Pra usar a interpretação inteligente de texto, você precisa cadastrar '
+            'uma chave gratuita da API do Gemini nas Configurações.',
           ),
           actions: [
             TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
@@ -58,12 +65,7 @@ class _PhotoScanScreenState extends State<PhotoScanScreen> {
       return;
     }
 
-    final picked = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 80);
-    if (picked == null) return;
-
-    final file = File(picked.path);
     setState(() {
-      _photo = file;
       _loading = true;
       _error = null;
       for (final e in _editable) {
@@ -72,31 +74,16 @@ class _PhotoScanScreenState extends State<PhotoScanScreen> {
       _editable = [];
     });
 
-    // Pergunta se pode salvar a foto na galeria (pasta dedicada do app),
-    // pra montar o histórico visual de evolução ao longo do tempo.
     try {
-      final hasAccess = await Gal.hasAccess();
-      if (!hasAccess) await Gal.requestAccess();
-      if (await Gal.hasAccess()) {
-        await Gal.putImage(file.path, album: 'NutriSnap');
-      }
-    } catch (_) {
-      // Sem permissão ou galeria indisponível — segue o fluxo normalmente,
-      // isso não deve travar o registro do alimento.
-    }
-
-    try {
-      final bytes = await file.readAsBytes();
-      final base64Image = base64Encode(bytes);
-      final raw = await GeminiService.analyzeFoodPhoto(apiKey: apiKey, base64Image: base64Image);
-      // Mostra a contagem que a IA usou junto do nome (ex: "Pão de forma
-      // (3 fatia)"), pra ficar óbvio de conferir se ela contou certo.
+      final raw = await GeminiService.analyzeFoodText(apiKey: apiKey, description: description);
+      // Mostra a quantidade/unidade que a IA detectou junto do nome (ex:
+      // "Pão de forma (4 fatia)"), pra ficar fácil de conferir.
       final parsed = parseGeminiFoodList(raw);
       setState(() {
         _editable = parsed.map((e) => EditableEntry.fromFoodEntry(e)).toList();
       });
     } catch (e) {
-      setState(() => _error = 'Não consegui analisar a foto: $e');
+      setState(() => _error = 'Não consegui interpretar o texto: $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -121,22 +108,28 @@ class _PhotoScanScreenState extends State<PhotoScanScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Scanner de prato (IA)')),
+      appBar: AppBar(title: const Text('Adicionar por texto (IA)')),
       body: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (_photo != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.file(_photo!, height: 180, fit: BoxFit.cover),
+            TextField(
+              controller: _descriptionCtrl,
+              maxLines: 3,
+              minLines: 1,
+              textInputAction: TextInputAction.done,
+              decoration: const InputDecoration(
+                hintText: 'Ex: "4 fatias de pão de forma", "3 ovos mexidos e '
+                    'uma fatia de pão", "café com leite e 2 colheres de açúcar"...',
               ),
-            const SizedBox(height: 16),
+              onSubmitted: (_) => _loading ? null : _analyze(),
+            ),
+            const SizedBox(height: 12),
             ElevatedButton.icon(
-              onPressed: _loading ? null : _takePhoto,
-              icon: const Icon(Icons.camera_alt_rounded),
-              label: Text(_photo == null ? 'Tirar foto do prato' : 'Tirar outra foto'),
+              onPressed: _loading ? null : _analyze,
+              icon: const Icon(Icons.auto_awesome_rounded),
+              label: Text(_editable.isEmpty ? 'Interpretar com IA' : 'Interpretar novamente'),
             ),
             const SizedBox(height: 20),
             if (_loading)
@@ -147,7 +140,7 @@ class _PhotoScanScreenState extends State<PhotoScanScreen> {
                     children: [
                       CircularProgressIndicator(),
                       SizedBox(height: 16),
-                      Text('Analisando o prato...', style: TextStyle(color: AppColors.textSecondary)),
+                      Text('Interpretando o texto...', style: TextStyle(color: AppColors.textSecondary)),
                     ],
                   ),
                 ),

@@ -3,8 +3,8 @@ import '../../theme/app_theme.dart';
 import '../../models/meal.dart';
 import '../../models/user_profile.dart';
 import '../../services/local_storage_service.dart';
-import 'add_food_dialog.dart';
 import '../scan/photo_scan_screen.dart';
+import '../scan/text_scan_screen.dart';
 
 class DiaryScreen extends StatefulWidget {
   final DateTime? date;
@@ -37,9 +37,11 @@ class _DiaryScreenState extends State<DiaryScreen> {
   }
 
   Future<void> _addFoodManual(Meal meal) async {
-    final entry = await showDialog(context: context, builder: (_) => const AddFoodDialog());
-    if (entry == null) return;
-    setState(() => meal.entries.add(entry));
+    final entries = await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const TextScanScreen()),
+    );
+    if (entries == null || (entries as List).isEmpty) return;
+    setState(() => meal.entries.addAll(entries.cast()));
     _persist();
   }
 
@@ -277,8 +279,8 @@ class _MealCard extends StatelessWidget {
                   Expanded(
                     child: OutlinedButton.icon(
                       onPressed: onAddFoodManual,
-                      icon: const Icon(Icons.edit_rounded, size: 16),
-                      label: const Text('Manual'),
+                      icon: const Icon(Icons.edit_note_rounded, size: 16),
+                      label: const Text('Texto (IA)'),
                     ),
                   ),
                   const SizedBox(width: 8),
