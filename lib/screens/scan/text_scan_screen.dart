@@ -82,8 +82,10 @@ class _TextScanScreenState extends State<TextScanScreen> {
       setState(() {
         _editable = parsed.map((e) => EditableEntry.fromFoodEntry(e)).toList();
       });
+    } on GeminiApiException catch (e) {
+      setState(() => _error = e.friendlyMessage);
     } catch (e) {
-      setState(() => _error = 'Não consegui interpretar o texto: $e');
+      setState(() => _error = 'Algo deu errado ao interpretar o texto. Tente novamente.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }

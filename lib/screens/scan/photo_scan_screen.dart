@@ -95,8 +95,10 @@ class _PhotoScanScreenState extends State<PhotoScanScreen> {
       setState(() {
         _editable = parsed.map((e) => EditableEntry.fromFoodEntry(e)).toList();
       });
+    } on GeminiApiException catch (e) {
+      setState(() => _error = e.friendlyMessage);
     } catch (e) {
-      setState(() => _error = 'Não consegui analisar a foto: $e');
+      setState(() => _error = 'Algo deu errado ao analisar a foto. Tente novamente.');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
