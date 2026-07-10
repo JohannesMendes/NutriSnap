@@ -13,12 +13,14 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late TextEditingController _apiKeyCtrl;
   late Map<String, String> _reminders;
+  late bool _savePhotosToGallery;
 
   @override
   void initState() {
     super.initState();
     _apiKeyCtrl = TextEditingController(text: LocalStorageService.loadGeminiApiKey() ?? '');
     _reminders = LocalStorageService.loadReminderSettings();
+    _savePhotosToGallery = LocalStorageService.loadSavePhotosToGallery();
   }
 
   Future<void> _pickTime(String key) async {
@@ -37,6 +39,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _save() async {
     await LocalStorageService.saveGeminiApiKey(_apiKeyCtrl.text.trim());
     await LocalStorageService.saveReminderSettings(_reminders);
+    await LocalStorageService.setSavePhotosToGallery(_savePhotosToGallery);
+    await LocalStorageService.setAskedGalleryPreference(true);
     await NotificationService.requestPermission();
     await NotificationService.rescheduleAll();
     if (!mounted) return;
@@ -90,6 +94,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 10),
           _TimeRow(label: 'Início', value: _reminders['water_start']!, onTap: () => _pickTime('water_start')),
           _TimeRow(label: 'Fim', value: _reminders['water_end']!, onTap: () => _pickTime('water_end')),
+          const SizedBox(height: 28),
+          Text('Fotos das refeições', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 10),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Salvar fotos na galeria'),
+            subtitle: const Text(
+              'Guarda uma cópia de cada foto de prato na galeria do aparelho, '
+              'pra acompanhar sua evolução visual ao longo do tempo. Se '
+              'desligado, a foto é usada só na hora e descartada em seguida.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+            value: _savePhotosToGallery,
+            onChanged: (v) => setState(() => _savePhotosToGallery = v),
+          ),
           const SizedBox(height: 28),
           ElevatedButton(onPressed: _save, child: const Text('Salvar configurações')),
         ],

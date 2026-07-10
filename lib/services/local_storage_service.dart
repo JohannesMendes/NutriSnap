@@ -142,19 +142,104 @@ class LocalStorageService {
     return Map<String, String>.from(jsonDecode(raw));
   }
 
-  /// Retorna as refeições do dia informado. Se o dia ainda não tem nada
-  /// salvo, cria as 3 refeições padrão (Café da Manhã, Almoço, Jantar).
+  /// Retorna as refeições do dia informado. A ESTRUTURA de refeições
+  /// (quais blocos existem — padrão e personalizados) é permanente e vive
+  /// separada do consumo diário: aqui, montamos cada dia combinando essa
+  /// estrutura fixa com os alimentos daquele dia específico. Assim, um
+  /// bloco personalizado como "Lanche da Tarde" nunca some na virada da
+  /// meia-noite — só os alimentos dele são zerados.
   static List<Meal> loadMealsForDate(DateTime date) {
+    final structure = loadMealStructure();
     final box = Hive.box(_diaryBox);
     final raw = box.get(_dayKey(date));
-    if (raw == null) return Meal.defaultMeals();
-    final list = jsonDecode(raw) as List;
-    return list.map((m) => Meal.fromMap(Map<String, dynamic>.from(m))).toList();
+
+    final dayMeals = <String, Meal>{};
+    if (raw != null) {
+      final list = jsonDecode(raw) as List;
+      for (final m in list) {
+        final meal = Meal.fromMap(Map<String, dynamic>.from(m));
+        dayMeals[meal.id] = meal;
+      }
+    }
+
+    final result = structure
+        .map((tpl) => Meal(
+              id: tpl.id,
+              name: tpl.name,
+              isDefault: tpl.isDefault,
+              entries: dayMeals[tpl.id]?.entries ?? [],
+            ))
+        .toList();
+
+    // Refeições que só existem nos dados desse dia (ex: criadas antes dessa
+    // versão, quando a estrutura ainda não era persistida à parte) também
+    // entram na lista, e a estrutura é atualizada pra incluí-las dali em
+    // diante — sem perder nenhum bloco que o usuário já tinha criado.
+    var structureChanged = false;
+    for (final m in dayMeals.values) {
+      if (!result.any((r) => r.id == m.id)) {
+        result.add(Meal(id: m.id, name: m.name, isDefault: m.isDefault, entries: m.entries));
+        structureChanged = true;
+      }
+    }
+    if (structureChanged) {
+      _saveMealStructure(result);
+    }
+    return result;
   }
 
   static Future<void> saveMealsForDate(DateTime date, List<Meal> meals) async {
     final box = Hive.box(_diaryBox);
     await box.put(_dayKey(date), jsonEncode(meals.map((m) => m.toMap()).toList()));
+    // Mantém a estrutura (quais blocos de refeição existem) sempre em dia,
+    // independente do dia — é o que garante que blocos novos sobrevivam
+    // ao reset diário.
+    await _saveMealStructure(meals);
+  }
+
+  static const _mealStructureKey = 'meal_structure';
+
+  /// A lista de blocos de refeição que o usuário tem hoje (padrão +
+  /// personalizados), sem os alimentos — é o "esqueleto" fixo que se repete
+  /// todo dia, vazio, até o usuário adicionar comida nele.
+  static List<Meal> loadMealStructure() {
+    final box = Hive.box(_profileBox);
+    final raw = box.get(_mealStructureKey);
+    if (raw == null) return Meal.defaultMeals();
+    final list = jsonDecode(raw) as List;
+    return list.map((m) => Meal.fromMap(Map<String, dynamic>.from(m))).toList();
+  }
+
+  static Future<void> _saveMealStructure(List<Meal> meals) async {
+    final box = Hive.box(_profileBox);
+    // Salva só o esqueleto (id/nome/tipo), nunca os alimentos — o consumo
+    // fica exclusivamente na chave por dia.
+    final shells = meals.map((m) => Meal(id: m.id, name: m.name, isDefault: m.isDefault)).toList();
+    await box.put(_mealStructureKey, jsonEncode(shells.map((s) => s.toMap()).toList()));
+  }
+
+  // ---------------- Preferência de salvar fotos na galeria (opt-in) ----------------
+
+  static const _askedGalleryKey = 'asked_save_photos_gallery';
+  static const _savePhotosKey = 'save_photos_gallery';
+
+  /// Se já perguntamos ao usuário (uma vez só) se ele quer salvar as fotos
+  /// das refeições na galeria.
+  static bool hasAskedGalleryPreference() =>
+      Hive.box(_profileBox).get(_askedGalleryKey, defaultValue: false) as bool;
+
+  static Future<void> setAskedGalleryPreference(bool asked) async {
+    await Hive.box(_profileBox).put(_askedGalleryKey, asked);
+  }
+
+  /// Preferência do usuário: salvar (true) ou não (false) as fotos das
+  /// refeições na galeria do aparelho. Padrão é NÃO salvar (opt-in) até
+  /// que o usuário decida explicitamente que quer.
+  static bool loadSavePhotosToGallery() =>
+      Hive.box(_profileBox).get(_savePhotosKey, defaultValue: false) as bool;
+
+  static Future<void> setSavePhotosToGallery(bool value) async {
+    await Hive.box(_profileBox).put(_savePhotosKey, value);
   }
 
   /// Retorna as datas (mais recentes primeiro) que já têm pelo menos um

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:gal/gal.dart';
@@ -20,7 +21,7 @@ class PhotoScanScreen extends StatefulWidget {
 }
 
 class _PhotoScanScreenState extends State<PhotoScanScreen> {
-  File? _photo;
+  Uint8List? _photoBytes;
   bool _loading = false;
   String? _error;
   List<EditableEntry> _editable = [];
@@ -31,6 +32,44 @@ class _PhotoScanScreenState extends State<PhotoScanScreen> {
       e.dispose();
     }
     super.dispose();
+  }
+
+  /// Na primeira vez que o usuário for tirar uma foto, pergunta se ele
+  /// quer salvar as fotos das refeições na galeria (opt-in). A resposta
+  /// fica salva e não pergunta de novo — pode ser trocada depois em
+  /// Configurações.
+  Future<bool> _resolveGalleryPreference() async {
+    if (LocalStorageService.hasAskedGalleryPreference()) {
+      return LocalStorageService.loadSavePhotosToGallery();
+    }
+    if (!mounted) return false;
+    final wantsSave = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: const Text('Salvar fotos das refeições?'),
+            content: const Text(
+              'Deseja salvar as fotos das suas refeições na galeria para '
+              'acompanhar sua evolução visual ao longo dos meses? Você pode '
+              'mudar isso depois em Configurações.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Não salvar'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Salvar na galeria'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+    await LocalStorageService.setSavePhotosToGallery(wantsSave);
+    await LocalStorageService.setAskedGalleryPreference(true);
+    return wantsSave;
   }
 
   Future<void> _takePhoto() async {
@@ -58,12 +97,16 @@ class _PhotoScanScreenState extends State<PhotoScanScreen> {
       return;
     }
 
+    final saveToGallery = await _resolveGalleryPreference();
+
     final picked = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 80);
     if (picked == null) return;
 
     final file = File(picked.path);
+    final bytes = await file.readAsBytes();
+
     setState(() {
-      _photo = file;
+      _photoBytes = bytes;
       _loading = true;
       _error = null;
       for (final e in _editable) {
@@ -72,21 +115,32 @@ class _PhotoScanScreenState extends State<PhotoScanScreen> {
       _editable = [];
     });
 
-    // Pergunta se pode salvar a foto na galeria (pasta dedicada do app),
-    // pra montar o histórico visual de evolução ao longo do tempo.
-    try {
-      final hasAccess = await Gal.hasAccess();
-      if (!hasAccess) await Gal.requestAccess();
-      if (await Gal.hasAccess()) {
-        await Gal.putImage(file.path, album: 'NutriSnap');
+    // Se o usuário optou por salvar, copia pra galeria (pasta dedicada do
+    // app) antes de descartar o arquivo temporário.
+    if (saveToGallery) {
+      try {
+        final hasAccess = await Gal.hasAccess();
+        if (!hasAccess) await Gal.requestAccess();
+        if (await Gal.hasAccess()) {
+          await Gal.putImage(file.path, album: 'NutriSnap');
+        }
+      } catch (_) {
+        // Sem permissão ou galeria indisponível — segue o fluxo normalmente,
+        // isso não deve travar o registro do alimento.
       }
+    }
+
+    // O arquivo temporário criado pela câmera não tem mais utilidade a
+    // partir daqui — já lemos os bytes (usados na tela e no envio pra IA)
+    // e, se o usuário quis, já copiamos pra galeria. Deleta pra não deixar
+    // lixo no armazenamento do aparelho, independente da escolha acima.
+    try {
+      if (await file.exists()) await file.delete();
     } catch (_) {
-      // Sem permissão ou galeria indisponível — segue o fluxo normalmente,
-      // isso não deve travar o registro do alimento.
+      // Falha ao deletar não deve travar o fluxo.
     }
 
     try {
-      final bytes = await file.readAsBytes();
       final base64Image = base64Encode(bytes);
       final raw = await GeminiService.analyzeFoodPhoto(apiKey: apiKey, base64Image: base64Image);
       // Mostra a contagem que a IA usou junto do nome (ex: "Pão de forma
@@ -129,16 +183,16 @@ class _PhotoScanScreenState extends State<PhotoScanScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (_photo != null)
+            if (_photoBytes != null)
               ClipRRect(
                 borderRadius: BorderRadius.circular(16),
-                child: Image.file(_photo!, height: 180, fit: BoxFit.cover),
+                child: Image.memory(_photoBytes!, height: 180, fit: BoxFit.cover),
               ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: _loading ? null : _takePhoto,
               icon: const Icon(Icons.camera_alt_rounded),
-              label: Text(_photo == null ? 'Tirar foto do prato' : 'Tirar outra foto'),
+              label: Text(_photoBytes == null ? 'Tirar foto do prato' : 'Tirar outra foto'),
             ),
             const SizedBox(height: 20),
             if (_loading)
