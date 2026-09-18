@@ -4,15 +4,17 @@
 /// ajustar valores ou textos.
 ///
 /// `id` é o valor gravado no Firestore (`tipo_plano`) quando o usuário
-/// assina — mantenha estável mesmo se mudar o `title` depois, senão
-/// assinaturas já ativas perdem a referência de qual plano é.
+/// assina — mantenha estável mesmo se mudar o `title`/nome comercial
+/// depois, senão assinaturas já ativas perdem a referência de qual plano
+/// é. Por isso os ids continuam `semanal`/`mensal`/`anual` mesmo com os
+/// nomes comerciais novos (Prata/Ouro/Diamante) — só a exibição mudou.
 class SubscriptionPlan {
   final String id;
-  final String title;
+  final String title; // nome comercial exibido (Prata, Ouro, Diamante)
   final String priceLabel;
   final String periodLabel;
   final String? originalPriceLabel; // preço "de", riscado — opcional
-  final String? badgeLabel; // ex: "Mais vantajoso", "-20%"
+  final String? badgeLabel; // ex: "Mais Vantajoso", "-20%"
   final bool highlight; // dá destaque visual ao card (borda/cor diferente)
   final List<String> features;
 
@@ -28,12 +30,20 @@ class SubscriptionPlan {
   });
 }
 
-/// Lista exibida na paywall, nessa ordem. Os valores de exemplo pedidos:
-/// semanal R$10, mensal e anual configuráveis (com desconto no anual).
+/// Lista exibida na paywall, nessa ordem — estratégia de ancoragem de
+/// preços: o Prata (semanal) aparece primeiro com o valor "por semana"
+/// alto de propósito, fazendo o Ouro (mensal) parecer uma economia óbvia
+/// e o Diamante (anual) parecer o melhor negócio de todos.
+///
+///   - Prata    (semanal): R$ 10,00/semana -> ancoragem alta
+///   - Ouro     (mensal):  R$ 24,90/mês    -> bem mais barato que
+///     assinar o Prata 4x seguidas no mês (R$ 40,00)
+///   - Diamante (anual):   R$ 149,90/ano   -> equivale a ~R$ 12,49/mês,
+///     o mais vantajoso de todos, com badge e destaque visual maiores
 const List<SubscriptionPlan> kSubscriptionPlans = [
   SubscriptionPlan(
     id: 'semanal',
-    title: 'Semanal',
+    title: 'Prata',
     priceLabel: 'R\$ 10,00',
     periodLabel: '/semana',
     features: [
@@ -44,28 +54,26 @@ const List<SubscriptionPlan> kSubscriptionPlans = [
   ),
   SubscriptionPlan(
     id: 'mensal',
-    title: 'Mensal',
-    priceLabel: 'R\$ 29,90',
+    title: 'Ouro',
+    priceLabel: 'R\$ 24,90',
     periodLabel: '/mês',
-    originalPriceLabel: 'R\$ 40,00',
-    badgeLabel: '-25%',
+    badgeLabel: 'Economize vs. semanal',
     features: [
-      'Tudo do plano Semanal',
-      'Economize comparado ao semanal',
+      'Tudo do plano Prata',
+      'Sai bem mais em conta que 4 semanas do Prata',
     ],
   ),
   SubscriptionPlan(
     id: 'anual',
-    title: 'Anual',
-    priceLabel: 'R\$ 199,90',
+    title: 'Diamante',
+    priceLabel: 'R\$ 149,90',
     periodLabel: '/ano',
-    originalPriceLabel: 'R\$ 358,80',
-    badgeLabel: 'Mais vantajoso',
+    badgeLabel: 'Mais Vantajoso',
     highlight: true,
     features: [
-      'Tudo do plano Mensal',
-      'Equivale a R\$ 16,66/mês',
-      'Melhor custo-benefício',
+      'Tudo do plano Ouro',
+      'Equivale a R\$ 12,49/mês',
+      'Melhor custo-benefício de todos os planos',
     ],
   ),
 ];
@@ -73,3 +81,13 @@ const List<SubscriptionPlan> kSubscriptionPlans = [
 /// Duração do período de teste gratuito, em dias, contada a partir de
 /// `data_criacao` (gravado no Firestore no momento do cadastro).
 const int kTrialDurationDays = 15;
+
+/// Busca os dados completos do plano (nome comercial, preço etc.) a
+/// partir do `id` salvo no Firestore. Retorna null se o id não bater com
+/// nenhum plano pago cadastrado (ex.: 'trial', 'ilimitado', 'admin').
+SubscriptionPlan? subscriptionPlanById(String id) {
+  for (final plan in kSubscriptionPlans) {
+    if (plan.id == id) return plan;
+  }
+  return null;
+}

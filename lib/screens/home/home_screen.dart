@@ -6,6 +6,7 @@ import '../../models/user_profile.dart';
 import '../diary/diary_screen.dart';
 import '../settings/settings_screen.dart';
 import '../history/history_screen.dart';
+import '../profile/profile_screen.dart';
 
 /// Tela inicial: resumo do dia (consumido vs meta), contador de água e
 /// acesso ao diário/configurações.
@@ -79,6 +80,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       appBar: AppBar(
         title: const Text('Hoje'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.person_outline_rounded),
+            tooltip: 'Perfil',
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const ProfileScreen())),
+          ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
             onPressed: () => Navigator.of(context)

@@ -21,6 +21,7 @@ class UserProfile {
   });
 
   bool get isUnlimited => _unlimitedPlanTypes.contains(tipoPlano);
+  bool get isAdmin => tipoPlano == 'admin';
   bool get isTrial => tipoPlano == 'trial';
 
   int get trialDaysElapsed => DateTime.now().difference(dataCriacao).inDays;
@@ -31,6 +32,30 @@ class UserProfile {
   /// manualmente, e (tem plano ilimitado/admin, tem um plano pago, OU
   /// ainda está dentro dos 15 dias de trial).
   bool get hasAccess => !bloqueado && (isUnlimited || !isTrialExpired);
+
+  /// Nome comercial do plano pra exibir na tela de Perfil — usa o nome
+  /// de venda (Prata/Ouro/Diamante) quando `tipoPlano` é um plano pago
+  /// conhecido (ver plans_config.dart), e um rótulo fixo pros demais
+  /// estados de conta.
+  String get planDisplayName {
+    switch (tipoPlano) {
+      case 'admin':
+        return 'Administrador';
+      case 'ilimitado':
+        return 'Ilimitado';
+      case 'trial':
+        return 'Trial';
+      default:
+        return subscriptionPlanById(tipoPlano)?.title ?? tipoPlano;
+    }
+  }
+
+  /// Dias restantes do plano/licença ativa, pra mostrar na tela de
+  /// Perfil. Admin/ilimitado não têm prazo (retorna null); trial usa a
+  /// contagem dos 15 dias; planos pagos (semanal/mensal/anual) são
+  /// renovados automaticamente então também não expõem "dias restantes"
+  /// aqui — o app só precisa saber que `hasAccess` é true pra eles.
+  int? get daysRemaining => isTrial ? trialDaysRemaining : null;
 
   factory UserProfile.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? {};
