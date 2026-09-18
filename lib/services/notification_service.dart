@@ -28,6 +28,24 @@ class NotificationService {
     priority: Priority.high,
   );
 
+  // createNotificationChannel espera um AndroidNotificationChannel (só a
+  // definição do canal), diferente do AndroidNotificationDetails (usado na
+  // hora de agendar cada notificação) — por isso duas versões, uma de cada
+  // tipo, com os mesmos ids/nomes.
+  static const _mealChannelDef = AndroidNotificationChannel(
+    'meal_reminders',
+    'Lembretes de refeição',
+    description: 'Lembretes pra registrar suas refeições',
+    importance: Importance.high,
+  );
+
+  static const _waterChannelDef = AndroidNotificationChannel(
+    'water_reminders',
+    'Lembretes de água',
+    description: 'Lembretes pra beber água ao longo do dia',
+    importance: Importance.high,
+  );
+
   static const _darwinDetails = DarwinNotificationDetails(
     presentAlert: true,
     presentSound: true,
@@ -58,8 +76,8 @@ class NotificationService {
     // dispara porque o canal só é criado de fato na primeira notificação
     // "imediata" — nunca em uma agendada.
     final androidPlugin = _plugin.resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
-    await androidPlugin?.createNotificationChannel(_mealChannel);
-    await androidPlugin?.createNotificationChannel(_waterChannel);
+    await androidPlugin?.createNotificationChannel(_mealChannelDef);
+    await androidPlugin?.createNotificationChannel(_waterChannelDef);
 
     _initialized = true;
   }
