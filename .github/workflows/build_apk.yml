@@ -60,42 +60,44 @@ jobs:
           api_key = client["api_key"][0]["current_key"]
           app_id = client["client_info"]["mobilesdk_app_id"]
 
-          content = f'''// ignore_for_file: type=lint
-import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
-import 'package:flutter/foundation.dart' show kIsWeb, TargetPlatform, defaultTargetPlatform;
-
-/// Gerado automaticamente pelo workflow de build (build_apk.yml) a partir
-/// do google-services.json real (secret GOOGLE_SERVICES_JSON). Não edite
-/// esse arquivo à mão — ele é sobrescrito a cada build.
-class DefaultFirebaseOptions {{
-  static FirebaseOptions get currentPlatform {{
-    if (kIsWeb) {{
-      throw UnsupportedError(
-        'DefaultFirebaseOptions não foi configurado pra Web.',
-      );
-    }}
-    switch (defaultTargetPlatform) {{
-      case TargetPlatform.android:
-        return android;
-      default:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions só está configurado pra Android no momento.',
-        );
-    }}
-  }}
-
-  static const FirebaseOptions android = FirebaseOptions(
-    apiKey: '{api_key}',
-    appId: '{app_id}',
-    messagingSenderId: '{project_info["project_number"]}',
-    projectId: '{project_info["project_id"]}',
-    storageBucket: '{project_info["storage_bucket"]}',
-  );
-}}
-'''
+          lines = [
+              "// ignore_for_file: type=lint",
+              "import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;",
+              "import 'package:flutter/foundation.dart' show kIsWeb, TargetPlatform, defaultTargetPlatform;",
+              "",
+              "/// Gerado automaticamente pelo workflow de build (build_apk.yml) a partir",
+              "/// do google-services.json real (secret GOOGLE_SERVICES_JSON). Não edite",
+              "/// esse arquivo à mão — ele é sobrescrito a cada build.",
+              "class DefaultFirebaseOptions {",
+              "  static FirebaseOptions get currentPlatform {",
+              "    if (kIsWeb) {",
+              "      throw UnsupportedError(",
+              "        'DefaultFirebaseOptions não foi configurado pra Web.',",
+              "      );",
+              "    }",
+              "    switch (defaultTargetPlatform) {",
+              "      case TargetPlatform.android:",
+              "        return android;",
+              "      default:",
+              "        throw UnsupportedError(",
+              "          'DefaultFirebaseOptions só está configurado pra Android no momento.',",
+              "        );",
+              "    }",
+              "  }",
+              "",
+              "  static const FirebaseOptions android = FirebaseOptions(",
+              f"    apiKey: '{api_key}',",
+              f"    appId: '{app_id}',",
+              f"    messagingSenderId: '{project_info['project_number']}',",
+              f"    projectId: '{project_info['project_id']}',",
+              f"    storageBucket: '{project_info['storage_bucket']}',",
+              "  );",
+              "}",
+              "",
+          ]
 
           with open("lib/firebase_options.dart", "w") as f:
-              f.write(content)
+              f.write("\n".join(lines))
 
           print("lib/firebase_options.dart gerado com projectId =", project_info["project_id"])
 
