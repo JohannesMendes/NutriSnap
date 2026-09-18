@@ -39,6 +39,66 @@ jobs:
             && echo "google-services.json válido" \
             || (echo "google-services.json ausente, vazio ou inválido — confira o secret GOOGLE_SERVICES_JSON nas Settings do repositório" && exit 1)
 
+      - name: Gerar lib/firebase_options.dart de verdade a partir do google-services.json
+        # O arquivo que estava no repo era só um placeholder (valores tipo
+        # 'SUBSTITUA_VIA_FLUTTERFIRE_CONFIGURE'), nunca gerado de verdade via
+        # `flutterfire configure`. Isso causava o erro [core/duplicate-app]
+        # (o Android já inicializava o Firebase sozinho com o
+        # google-services.json real, e o Flutter tentava inicializar de novo
+        # com dados falsos) e fazia login/cadastro falharem sempre. Gerando
+        # aqui a partir do MESMO google-services.json real usado pelo Gradle,
+        # os dois lados ficam sempre em sincronia.
+        shell: python3 {0}
+        run: |
+          import json
+
+          with open("android/app/google-services.json") as f:
+              gs = json.load(f)
+
+          project_info = gs["project_info"]
+          client = gs["client"][0]
+          api_key = client["api_key"][0]["current_key"]
+          app_id = client["client_info"]["mobilesdk_app_id"]
+
+          content = f'''// ignore_for_file: type=lint
+import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
+import 'package:flutter/foundation.dart' show kIsWeb, TargetPlatform, defaultTargetPlatform;
+
+/// Gerado automaticamente pelo workflow de build (build_apk.yml) a partir
+/// do google-services.json real (secret GOOGLE_SERVICES_JSON). Não edite
+/// esse arquivo à mão — ele é sobrescrito a cada build.
+class DefaultFirebaseOptions {{
+  static FirebaseOptions get currentPlatform {{
+    if (kIsWeb) {{
+      throw UnsupportedError(
+        'DefaultFirebaseOptions não foi configurado pra Web.',
+      );
+    }}
+    switch (defaultTargetPlatform) {{
+      case TargetPlatform.android:
+        return android;
+      default:
+        throw UnsupportedError(
+          'DefaultFirebaseOptions só está configurado pra Android no momento.',
+        );
+    }}
+  }}
+
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: '{api_key}',
+    appId: '{app_id}',
+    messagingSenderId: '{project_info["project_number"]}',
+    projectId: '{project_info["project_id"]}',
+    storageBucket: '{project_info["storage_bucket"]}',
+  );
+}}
+'''
+
+          with open("lib/firebase_options.dart", "w") as f:
+              f.write(content)
+
+          print("lib/firebase_options.dart gerado com projectId =", project_info["project_id"])
+
       - name: Ativar o plugin do Google Services no Gradle
         shell: python3 {0}
         run: |
