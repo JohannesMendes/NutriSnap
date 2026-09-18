@@ -7,7 +7,6 @@ import 'package:gal/gal.dart';
 import '../../theme/app_theme.dart';
 import '../../services/gemini_service.dart';
 import '../../services/local_storage_service.dart';
-import '../settings/settings_screen.dart';
 import 'ai_review_widgets.dart';
 
 /// O core do app: tira foto do prato (de uma fruta a um prato completo),
@@ -73,30 +72,6 @@ class _PhotoScanScreenState extends State<PhotoScanScreen> {
   }
 
   Future<void> _takePhoto() async {
-    final apiKey = LocalStorageService.loadGeminiApiKey();
-    if (apiKey == null || apiKey.isEmpty) {
-      if (!mounted) return;
-      final go = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          backgroundColor: AppColors.surface,
-          title: const Text('Configure sua chave do Gemini'),
-          content: const Text(
-            'Pra usar o scanner por foto, você precisa cadastrar uma chave '
-            'gratuita da API do Gemini nas Configurações.',
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
-            ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Ir pra Configurações')),
-          ],
-        ),
-      );
-      if (go == true && mounted) {
-        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
-      }
-      return;
-    }
-
     final saveToGallery = await _resolveGalleryPreference();
 
     final picked = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 80);
@@ -142,7 +117,7 @@ class _PhotoScanScreenState extends State<PhotoScanScreen> {
 
     try {
       final base64Image = base64Encode(bytes);
-      final raw = await GeminiService.analyzeFoodPhoto(apiKey: apiKey, base64Image: base64Image);
+      final raw = await GeminiService.analyzeFoodPhoto(base64Image: base64Image);
       // Mostra a contagem que a IA usou junto do nome (ex: "Pão de forma
       // (3 fatia)"), pra ficar óbvio de conferir se ela contou certo.
       final parsed = parseGeminiFoodList(raw);

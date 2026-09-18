@@ -11,6 +11,15 @@ Future<void> main() async {
   await LocalStorageService.init();
   await NotificationService.init();
 
+  // Se o usuário já tem um perfil (não é a primeira vez que abre o app),
+  // garante que os lembretes de refeição/água continuem agendados mesmo
+  // que ele nunca entre na tela de Configurações — antes, os lembretes só
+  // eram (re)agendados quando o usuário salvava as configurações.
+  if (LocalStorageService.hasProfile()) {
+    await NotificationService.requestPermission();
+    await NotificationService.rescheduleAll();
+  }
+
   runApp(const NutriSnapApp());
 }
 

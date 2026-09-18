@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../models/user_profile.dart';
 import '../models/meal.dart';
-import '../config/app_config.dart';
 
 /// Guarda todos os dados do app direto no aparelho (Hive), sem servidor
 /// e sem nenhuma configuração externa — persistência 100% local e
@@ -98,26 +97,12 @@ class LocalStorageService {
     return entries;
   }
 
-  // ---------------- Configurações (API key + lembretes) ----------------
-
-  static Future<void> saveGeminiApiKey(String key) async {
-    final box = Hive.box(_profileBox);
-    await box.put('gemini_api_key', key);
-  }
-
-  static String? loadGeminiApiKey() {
-    final userKey = Hive.box(_profileBox).get('gemini_api_key') as String?;
-    if (userKey != null && userKey.isNotEmpty) return userKey;
-    // Sem chave própria salva -> usa a chave de testes embutida no build
-    // (injetada via --dart-define, não fica no código-fonte).
-    return kBuiltInGeminiApiKey.isNotEmpty ? kBuiltInGeminiApiKey : null;
-  }
-
-  /// Indica se a chave em uso é a própria do usuário (não a de testes).
-  static bool hasCustomGeminiApiKey() {
-    final userKey = Hive.box(_profileBox).get('gemini_api_key') as String?;
-    return userKey != null && userKey.isNotEmpty;
-  }
+  // ---------------- Configurações (lembretes) ----------------
+  //
+  // A chave da API do Gemini não fica mais no aparelho: o scanner de IA
+  // agora fala com um backend seguro (Firebase Cloud Functions), que
+  // guarda a chave só no servidor. Ver lib/config/app_config.dart e
+  // lib/services/gemini_service.dart.
 
   /// Horários dos lembretes, salvos como "HH:mm". Chaves: breakfast, lunch,
   /// dinner, water_start, water_end, water_interval_hours.
@@ -269,5 +254,17 @@ class LocalStorageService {
     }
     dates.sort((a, b) => b.compareTo(a));
     return dates;
+  }
+
+  /// Exclui todos os dados de um dia específico do histórico: as
+  /// refeições/alimentos registrados naquele dia, o total de água bebida
+  /// e a foto de check-in (se houver). Ação irreversível — a tela de
+  /// Histórico confirma com o usuário antes de chamar isso.
+  static Future<void> deleteDay(DateTime date) async {
+    final box = Hive.box(_diaryBox);
+    final key = _dayKey(date);
+    await box.delete(key);
+    await box.delete('water_$key');
+    await box.delete('photo_$key');
   }
 }

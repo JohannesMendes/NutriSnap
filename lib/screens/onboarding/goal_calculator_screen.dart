@@ -3,6 +3,7 @@ import '../../theme/app_theme.dart';
 import '../../models/user_profile.dart';
 import '../../utils/calculator.dart';
 import '../../services/local_storage_service.dart';
+import '../../services/notification_service.dart';
 import '../home/home_screen.dart';
 
 class GoalCalculatorScreen extends StatefulWidget {
@@ -51,6 +52,9 @@ class _GoalCalculatorScreenState extends State<GoalCalculatorScreen> {
     setState(() => _result = GoalCalculator.calculate(profile));
     LocalStorageService.saveProfile(profile);
     LocalStorageService.saveTargets(_result!);
+    // Já deixa os lembretes agendados a partir do primeiro uso, com os
+    // horários padrão — o usuário pode ajustar depois em Configurações.
+    NotificationService.requestPermission().then((_) => NotificationService.rescheduleAll());
   }
 
   @override

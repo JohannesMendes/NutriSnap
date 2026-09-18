@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../services/gemini_service.dart';
-import '../../services/local_storage_service.dart';
-import '../settings/settings_screen.dart';
 import 'ai_review_widgets.dart';
 
 /// Entrada manual "inteligente": o usuário digita livremente o que comeu
@@ -41,30 +39,6 @@ class _TextScanScreenState extends State<TextScanScreen> {
       return;
     }
 
-    final apiKey = LocalStorageService.loadGeminiApiKey();
-    if (apiKey == null || apiKey.isEmpty) {
-      if (!mounted) return;
-      final go = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          backgroundColor: AppColors.surface,
-          title: const Text('Configure sua chave do Gemini'),
-          content: const Text(
-            'Pra usar a interpretação inteligente de texto, você precisa cadastrar '
-            'uma chave gratuita da API do Gemini nas Configurações.',
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
-            ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Ir pra Configurações')),
-          ],
-        ),
-      );
-      if (go == true && mounted) {
-        Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
-      }
-      return;
-    }
-
     setState(() {
       _loading = true;
       _error = null;
@@ -75,7 +49,7 @@ class _TextScanScreenState extends State<TextScanScreen> {
     });
 
     try {
-      final raw = await GeminiService.analyzeFoodText(apiKey: apiKey, description: description);
+      final raw = await GeminiService.analyzeFoodText(description: description);
       // Mostra a quantidade/unidade que a IA detectou junto do nome (ex:
       // "Pão de forma (4 fatia)"), pra ficar fácil de conferir.
       final parsed = parseGeminiFoodList(raw);

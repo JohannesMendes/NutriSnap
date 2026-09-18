@@ -150,13 +150,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  Row(
+                  // Grade compacta: cada botão traz um ícone diferente pra
+                  // deixar o tamanho da porção reconhecível de longe, sem
+                  // precisar ler o número.
+                  GridView.count(
+                    crossAxisCount: 3,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 1.5,
                     children: [
-                      _WaterButton(label: '+200ml', onTap: () => _addWater(200)),
-                      const SizedBox(width: 8),
-                      _WaterButton(label: '+300ml', onTap: () => _addWater(300)),
-                      const SizedBox(width: 8),
-                      _WaterButton(label: '+500ml', onTap: () => _addWater(500)),
+                      _WaterButton(icon: Icons.local_cafe_rounded, label: '+200ml', onTap: () => _addWater(200)),
+                      _WaterButton(icon: Icons.local_drink_rounded, label: '+300ml', onTap: () => _addWater(300)),
+                      _WaterButton(icon: Icons.water_drop_rounded, label: '+500ml', onTap: () => _addWater(500)),
                     ],
                   ),
                 ],
@@ -164,19 +171,30 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             ),
           ),
           const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => const DiaryScreen()))
-                .then((_) => setState(() {})),
-            icon: const Icon(Icons.restaurant_menu_rounded),
-            label: const Text('Abrir diário de refeições'),
-          ),
-          const SizedBox(height: 10),
-          OutlinedButton.icon(
-            onPressed: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => const HistoryScreen())),
-            icon: const Icon(Icons.calendar_month_rounded),
-            label: const Text('Ver histórico de dias anteriores'),
+          Row(
+            children: [
+              Expanded(
+                child: _SectionButton(
+                  icon: Icons.restaurant_menu_rounded,
+                  label: 'Diário de refeições',
+                  filled: true,
+                  onTap: () => Navigator.of(context)
+                      .push(MaterialPageRoute(builder: (_) => const DiaryScreen()))
+                      .then((_) => setState(() {})),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _SectionButton(
+                  icon: Icons.calendar_month_rounded,
+                  label: 'Histórico',
+                  filled: false,
+                  onTap: () => Navigator.of(context)
+                      .push(MaterialPageRoute(builder: (_) => const HistoryScreen()))
+                      .then((_) => setState(() {})),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -185,14 +203,60 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 }
 
 class _WaterButton extends StatelessWidget {
+  final IconData icon;
   final String label;
   final VoidCallback onTap;
-  const _WaterButton({required this.label, required this.onTap});
+  const _WaterButton({required this.icon, required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: OutlinedButton(onPressed: onTap, child: Text(label)),
+    return OutlinedButton(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        side: const BorderSide(color: AppColors.water),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 20, color: AppColors.water),
+          const SizedBox(height: 2),
+          Text(label, style: const TextStyle(fontSize: 12)),
+        ],
+      ),
     );
+  }
+}
+
+/// Botão de seção com ícone à esquerda, usado pros dois grandes acessos
+/// da home (diário de hoje e histórico) — o preenchimento (`filled`)
+/// diferencia visualmente a ação principal da secundária.
+class _SectionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool filled;
+  final VoidCallback onTap;
+  const _SectionButton({
+    required this.icon,
+    required this.label,
+    required this.filled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 22),
+        const SizedBox(height: 6),
+        Text(label, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13)),
+      ],
+    );
+    final padding = const EdgeInsets.symmetric(vertical: 14);
+    return filled
+        ? ElevatedButton(onPressed: onTap, style: ElevatedButton.styleFrom(padding: padding), child: child)
+        : OutlinedButton(onPressed: onTap, style: OutlinedButton.styleFrom(padding: padding), child: child);
   }
 }

@@ -11,14 +11,12 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  late TextEditingController _apiKeyCtrl;
   late Map<String, String> _reminders;
   late bool _savePhotosToGallery;
 
   @override
   void initState() {
     super.initState();
-    _apiKeyCtrl = TextEditingController(text: LocalStorageService.loadGeminiApiKey() ?? '');
     _reminders = LocalStorageService.loadReminderSettings();
     _savePhotosToGallery = LocalStorageService.loadSavePhotosToGallery();
   }
@@ -37,7 +35,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _save() async {
-    await LocalStorageService.saveGeminiApiKey(_apiKeyCtrl.text.trim());
     await LocalStorageService.saveReminderSettings(_reminders);
     await LocalStorageService.setSavePhotosToGallery(_savePhotosToGallery);
     await LocalStorageService.setAskedGalleryPreference(true);
@@ -58,30 +55,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           Text('Scanner de foto (IA)', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
-          if (!LocalStorageService.hasCustomGeminiApiKey())
-            Container(
-              padding: const EdgeInsets.all(12),
-              margin: const EdgeInsets.only(bottom: 10),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceLight,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Text(
-                '✓ Usando a chave de testes já configurada no app. '
-                'Só preencha abaixo se quiser usar sua própria chave.',
-                style: TextStyle(color: AppColors.primary, fontSize: 12),
-              ),
+          Container(
+            padding: const EdgeInsets.all(12),
+            margin: const EdgeInsets.only(bottom: 10),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceLight,
+              borderRadius: BorderRadius.circular(10),
             ),
-          const Text(
-            'Cole aqui sua chave gratuita da API do Gemini (Google AI Studio) '
-            'pra usar o reconhecimento de alimentos por foto.',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _apiKeyCtrl,
-            obscureText: true,
-            decoration: const InputDecoration(hintText: 'Chave da API do Gemini'),
+            child: const Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.verified_user_rounded, color: AppColors.primary, size: 18),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'O reconhecimento de alimentos por foto e por texto roda em um '
+                    'servidor seguro — nenhuma chave de API fica guardada ou '
+                    'exposta no aparelho.',
+                    style: TextStyle(color: AppColors.primary, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 28),
           Text('Lembretes de refeição', style: Theme.of(context).textTheme.titleMedium),
