@@ -28,8 +28,12 @@ jobs:
 
       - name: Adicionar arquivo de configuração do Firebase (google-services.json)
         run: |
-          echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
-          test -s android/app/google-services.json && echo "google-services.json criado com sucesso" || (echo "Falha ao criar google-services.json" && exit 1)
+          cat > android/app/google-services.json << 'EOF'
+          ${{ secrets.GOOGLE_SERVICES_JSON }}
+          EOF
+          python3 -c "import json; json.load(open('android/app/google-services.json'))" \
+            && echo "google-services.json válido" \
+            || (echo "google-services.json ausente, vazio ou inválido — confira o secret GOOGLE_SERVICES_JSON nas Settings do repositório" && exit 1)
 
       - name: Ativar o plugin do Google Services no Gradle
         shell: python3 {0}
