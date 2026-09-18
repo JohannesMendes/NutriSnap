@@ -42,7 +42,7 @@ flutter:
 # `flutter pub get` (o workflow do GitHub Actions já faz isso automaticamente).
 flutter_launcher_icons:
   android: true
-  ios: true
+  ios: false
   image_path: "assets/images/app_icon.png"
   # Ícone adaptativo do Android: fundo sólido na mesma cor da logo + a
   # marca (garfo/colher) centralizada, evitando que o Android recorte o
