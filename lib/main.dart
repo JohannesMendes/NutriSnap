@@ -16,11 +16,20 @@ Future<void> main() async {
 
   try {
     // Evita o erro "[core/duplicate-app] A Firebase App named "[DEFAULT]"
-    // already exists" que pode ocorrer quando o engine do Flutter é
-    // reaproveitado (ex.: Activity recriada pelo Android) e o main() roda
-    // de novo sem o Firebase ter sido de fato derrubado.
-    if (Firebase.apps.isEmpty) {
+    // already exists". Causa real: o workflow de build (build_apk.yml) copia
+    // um google-services.json E aplica o plugin do Google Services no Gradle.
+    // Isso faz o Android inicializar o app "[DEFAULT]" sozinho (antes mesmo
+    // do main() rodar), então quando chamamos Firebase.initializeApp(options:
+    // ...) aqui embaixo com as opções explícitas do firebase_options.dart,
+    // o Firebase reclama que "[DEFAULT]" já existe. Isso acontece sempre,
+    // em todo abertura do app — por isso a checagem "apps.isEmpty" sozinha
+    // não resolve (o app nativo já existe antes do Dart rodar).
+    try {
       await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    } on FirebaseException catch (error) {
+      if (error.code != 'duplicate-app') rethrow;
+      // Já existe um "[DEFAULT]" (auto-inicializado nativamente) — está tudo
+      // bem, só seguimos usando ele em vez de tentar criar outro.
     }
 
     // Armazenamento local (Hive) — tudo fica salvo no aparelho, sem servidor.

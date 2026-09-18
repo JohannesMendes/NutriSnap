@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'user_profile_service.dart';
 
@@ -30,6 +31,13 @@ class AuthException implements Exception {
       case 'network-request-failed':
         return AuthException('Sem conexão com a internet. Verifique e tente novamente.');
       default:
+        // Loga o código real do Firebase — a mensagem genérica ("Não foi
+        // possível concluir") esconde qual erro é (ex.: 'operation-not-
+        // allowed' quando o login por e-mail/senha está desativado no
+        // Firebase Console, ou 'internal-error'/'unknown' quando o app
+        // Firebase não inicializou corretamente). Ver os logs (adb logcat
+        // ou "flutter logs") mostra o code real quando isso acontecer.
+        debugPrint('FirebaseAuthException não mapeada: code=${e.code} message=${e.message}');
         return AuthException('Não foi possível concluir. Tente novamente em instantes.');
     }
   }
