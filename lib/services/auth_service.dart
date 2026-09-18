@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'user_profile_service.dart';
 
 /// Exceção com mensagem amigável em português — a UI nunca precisa
 /// traduzir os códigos de erro do Firebase na mão.
@@ -57,6 +58,12 @@ class AuthService {
       final credential = await _auth.createUserWithEmailAndPassword(email: email.trim(), password: password);
       if (name != null && name.trim().isNotEmpty) {
         await credential.user?.updateDisplayName(name.trim());
+      }
+      final uid = credential.user?.uid;
+      if (uid != null) {
+        // Cria o documento de perfil (plano trial de 15 dias) assim que a
+        // conta é criada — ver UserProfileService e o LicenseGate em main.dart.
+        await UserProfileService.createProfileIfNeeded(uid);
       }
     } on FirebaseAuthException catch (e) {
       throw AuthException.fromFirebase(e);

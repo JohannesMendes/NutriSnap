@@ -9,6 +9,7 @@ import 'services/force_update_service.dart';
 import 'screens/splash/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/update/force_update_screen.dart';
+import 'screens/license_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -108,7 +109,9 @@ class AuthGate extends StatelessWidget {
         }
         final user = snapshot.data;
         if (user == null) return const LoginScreen();
-        return const SplashScreen();
+        // Usuário logado: agora checa o plano/trial/bloqueio antes de
+        // liberar o resto do app (ver LicenseGate).
+        return const LicenseGate(child: SplashScreen());
       },
     );
   }
