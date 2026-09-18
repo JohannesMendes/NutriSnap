@@ -26,6 +26,68 @@ jobs:
           flutter create --platforms=android --org com.nutrisnap --project-name nutrisnap /tmp/nutrisnap_scaffold
           cp -r /tmp/nutrisnap_scaffold/android .
 
+      - name: Adicionar arquivo de configuração do Firebase (google-services.json)
+        run: |
+          echo '${{ secrets.GOOGLE_SERVICES_JSON }}' > android/app/google-services.json
+          test -s android/app/google-services.json && echo "google-services.json criado com sucesso" || (echo "Falha ao criar google-services.json" && exit 1)
+
+      - name: Ativar o plugin do Google Services no Gradle
+        shell: python3 {0}
+        run: |
+          import os, re
+
+          # --- 1) Declara o plugin no nível do projeto (settings.gradle.kts ou settings.gradle) ---
+          settings_kts = "android/settings.gradle.kts"
+          settings_groovy = "android/settings.gradle"
+          settings_is_kts = os.path.exists(settings_kts)
+          settings_path = settings_kts if settings_is_kts else settings_groovy
+
+          with open(settings_path, "r") as f:
+              settings_content = f.read()
+
+          if "com.google.gms.google-services" not in settings_content:
+              if settings_is_kts:
+                  plugin_line = '    id("com.google.gms.google-services") version "4.4.2" apply false\n'
+              else:
+                  plugin_line = "    id 'com.google.gms.google-services' version '4.4.2' apply false\n"
+
+              # Insere logo após a abertura do bloco "plugins {" que já existe no template do Flutter
+              settings_content = re.sub(
+                  r"(plugins\s*\{\n)",
+                  r"\1" + plugin_line,
+                  settings_content,
+                  count=1,
+              )
+
+              with open(settings_path, "w") as f:
+                  f.write(settings_content)
+
+          # --- 2) Aplica o plugin no módulo do app (android/app/build.gradle.kts ou .gradle) ---
+          app_kts = "android/app/build.gradle.kts"
+          app_groovy = "android/app/build.gradle"
+          app_is_kts = os.path.exists(app_kts)
+          app_path = app_kts if app_is_kts else app_groovy
+
+          with open(app_path, "r") as f:
+              app_content = f.read()
+
+          if "com.google.gms.google-services" not in app_content:
+              apply_line = (
+                  '    id("com.google.gms.google-services")\n'
+                  if app_is_kts else
+                  "    id 'com.google.gms.google-services'\n"
+              )
+              app_content = re.sub(
+                  r"(plugins\s*\{\n)",
+                  r"\1" + apply_line,
+                  app_content,
+                  count=1,
+              )
+              with open(app_path, "w") as f:
+                  f.write(app_content)
+
+          print(f"Patched {settings_path} and {app_path}")
+
       - name: Adicionar permissões necessárias (internet + notificações/alarmes)
         run: |
           MANIFEST=android/app/src/main/AndroidManifest.xml
