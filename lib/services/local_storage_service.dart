@@ -32,6 +32,16 @@ class LocalStorageService {
 
   static bool hasProfile() => Hive.box(_profileBox).containsKey(_profileKey);
 
+  /// Apaga o perfil e as metas diárias salvas — usado quando o usuário
+  /// escolhe "Finalizar meta atual" em Configurações pra recomeçar do
+  /// zero (ex: novo objetivo de peso, novo ciclo). NÃO apaga o histórico
+  /// do diário (refeições/água já registrados continuam intactos).
+  static Future<void> resetProfileAndTargets() async {
+    final box = Hive.box(_profileBox);
+    await box.delete(_profileKey);
+    await box.delete(_targetsKey);
+  }
+
   static Future<void> saveTargets(DailyTargets targets) async {
     final box = Hive.box(_profileBox);
     await box.put(_targetsKey, jsonEncode({

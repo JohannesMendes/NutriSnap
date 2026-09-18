@@ -88,8 +88,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
-            onPressed: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
+            onPressed: () async {
+              await Navigator.of(context)
+                  .push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
+              // Metas podem ter sido editadas (ou o ciclo finalizado) em
+              // Configurações — força o resumo do dia a reler os dados
+              // mais recentes do Hive assim que a pessoa volta pra Home.
+              if (mounted) setState(() {});
+            },
           ),
         ],
       ),

@@ -3,6 +3,7 @@ import '../../theme/app_theme.dart';
 import '../../services/local_storage_service.dart';
 import '../../services/notification_service.dart';
 import '../../services/auth_service.dart';
+import 'my_goals_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -60,6 +61,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          Text('Minhas Metas e Perfil', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 4),
+          const Text(
+            'Atualize seu nome, altura, peso, meta de peso e metas diárias '
+            'de calorias/água a qualquer momento.',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const MyGoalsScreen())),
+            icon: const Icon(Icons.track_changes_rounded),
+            label: const Text('Editar minhas metas e perfil'),
+          ),
+          const SizedBox(height: 28),
           Text('Lembretes de refeição', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 10),
           SwitchListTile(

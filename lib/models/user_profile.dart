@@ -84,4 +84,18 @@ class DailyTargets {
     required this.fatG,
     required this.waterMl,
   });
+
+  /// Usado na tela "Minhas Metas e Perfil" (Configurações) pra permitir
+  /// que o usuário sobrescreva manualmente a meta calórica e/ou de água,
+  /// mantendo os macros (proteína/carbo/gordura) coerentes com o cálculo
+  /// baseado no perfil.
+  DailyTargets copyWith({int? calories, int? proteinG, int? carbsG, int? fatG, int? waterMl}) {
+    return DailyTargets(
+      calories: calories ?? this.calories,
+      proteinG: proteinG ?? this.proteinG,
+      carbsG: carbsG ?? this.carbsG,
+      fatG: fatG ?? this.fatG,
+      waterMl: waterMl ?? this.waterMl,
+    );
+  }
 }

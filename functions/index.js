@@ -34,12 +34,30 @@ const PHOTO_PROMPT = `Você é um nutricionista analisando uma foto de comida co
    (valor nutricional de 1 unidade) x (quantidade contada).
    Nunca devolva o valor de uma única unidade se houver mais de uma visível — some tudo.
 
-2. ESCALA E PROPORÇÃO — fatia vs. inteiro:
-   Antes de estimar o peso, procure referências de tamanho na própria foto: garfo,
-   faca, colher, tamanho do prato, copo, mão, embalagem. Use essas referências para
-   decidir se o que você vê é uma PORÇÃO/FATIA INDIVIDUAL ou o ALIMENTO INTEIRO.
-   Exemplo: uma fatia de bolo de ~3cm de largura é uma FATIA, não o bolo inteiro —
-   estime o peso dessa fatia especificamente, nunca o peso do bolo completo.
+2. ESCALA E PROPORÇÃO — fatia/pedaço/fração vs. inteiro (regra crítica,
+   NUNCA pule esta etapa):
+   Antes de estimar o peso de QUALQUER alimento, pergunte-se explicitamente:
+   "o que está na foto é o alimento INTEIRO, ou é apenas um PEDAÇO, FATIA
+   ou FRAÇÃO dele?". NUNCA assuma a unidade inteira por padrão — essa é a
+   causa mais comum de erro grosseiro de calorias. Procure ativamente por
+   sinais visuais de corte/fração: uma superfície de corte exposta, uma
+   borda reta que não é a borda natural do alimento, metade de um formato
+   simétrico (ex: meio pão francês partido ao longo, meia banana, um
+   quarto de melancia), ou uma fatia fina destacada de um pão/bolo/queijo
+   maior. Use referências de tamanho na própria foto (garfo, faca, colher,
+   prato, copo, mão, embalagem) pra confirmar a proporção.
+   - Se o alimento estiver PARTIDO/CORTADO e você ver só uma parte dele
+     (ex: "meio pão", "uma fatia de pão", "um quarto de abacaxi", "metade
+     de um ovo cozido"), estime o peso e as calorias APENAS dessa fração
+     visível — nunca calcule como se fosse a unidade completa e depois
+     divida, e nunca reporte o valor da unidade inteira "só pra
+     simplificar".
+   - Exemplo: uma fatia de bolo de ~3cm de largura é uma FATIA, não o bolo
+     inteiro — estime o peso dessa fatia especificamente, nunca o peso do
+     bolo completo. O mesmo vale pra "meio pão" (metade do peso/calorias
+     de um pão inteiro do mesmo tipo) e qualquer outro alimento fracionado.
+   - Só assuma a unidade INTEIRA quando o contorno completo do alimento
+     estiver visível e íntegro na foto, sem nenhum corte ou parte faltando.
 
 3. CETICISMO COM PESO/VOLUME:
    Estime o peso com base no tamanho e densidade do que está REALMENTE visível na

@@ -109,4 +109,29 @@ class UserProfileService {
       'assinatura_ativada_em': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
+
+  /// Faz backup das métricas/metas do usuário (perfil + metas diárias) no
+  /// Firestore — chamado pela tela "Minhas Metas e Perfil" em
+  /// Configurações sempre que o usuário salva alterações. O app continua
+  /// usando o Hive local como fonte principal (pra funcionar 100% offline
+  /// e refletir na Home na hora), o Firestore aqui é só espelho/backup —
+  /// por isso qualquer falha de rede é engolida (best-effort) e não
+  /// bloqueia o salvamento local.
+  static Future<void> saveGoalsBackup(
+    String uid, {
+    required Map<String, dynamic> profile,
+    required Map<String, dynamic> targets,
+  }) async {
+    try {
+      await _collection.doc(uid).set({
+        'perfil': profile,
+        'metas_diarias': targets,
+        'metas_atualizadas_em': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {
+      // Sem internet, regras do Firestore bloqueando, etc. — os dados já
+      // estão salvos localmente (Hive), então não interrompe o fluxo do
+      // usuário por causa do backup remoto.
+    }
+  }
 }

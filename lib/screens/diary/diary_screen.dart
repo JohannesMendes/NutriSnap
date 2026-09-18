@@ -59,6 +59,17 @@ class _DiaryScreenState extends State<DiaryScreen> {
     _persist();
   }
 
+  void _reorderMeals(int oldIndex, int newIndex) {
+    setState(() {
+      if (newIndex > oldIndex) newIndex -= 1;
+      final meal = _meals.removeAt(oldIndex);
+      _meals.insert(newIndex, meal);
+    });
+    // Persiste a nova ordem (tanto a estrutura de blocos quanto os
+    // alimentos do dia atual) pra sobreviver a reaberturas do app.
+    _persist();
+  }
+
   Future<void> _addCustomMeal() async {
     final controller = TextEditingController();
     final name = await showDialog<String>(
@@ -112,23 +123,29 @@ class _DiaryScreenState extends State<DiaryScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView(
+            child: ReorderableListView(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+              buildDefaultDragHandles: false,
+              onReorder: _reorderMeals,
               children: [
-                ..._meals.map((meal) => _MealCard(
-                      meal: meal,
-                      onAddFoodManual: () => _addFoodManual(meal),
-                      onAddFoodByPhoto: () => _addFoodByPhoto(meal),
-                      onRemoveFood: (id) => _removeFood(meal, id),
-                    )),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: _addCustomMeal,
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('Nova refeição personalizada'),
-                ),
-                const SizedBox(height: 12),
+                for (int i = 0; i < _meals.length; i++)
+                  _MealCard(
+                    key: ValueKey(_meals[i].id),
+                    index: i,
+                    meal: _meals[i],
+                    onAddFoodManual: () => _addFoodManual(_meals[i]),
+                    onAddFoodByPhoto: () => _addFoodByPhoto(_meals[i]),
+                    onRemoveFood: (id) => _removeFood(_meals[i], id),
+                  ),
               ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            child: OutlinedButton.icon(
+              onPressed: _addCustomMeal,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Nova refeição personalizada'),
             ),
           ),
           if (targets != null)
@@ -233,12 +250,15 @@ class _MiniStat extends StatelessWidget {
 
 class _MealCard extends StatelessWidget {
   final Meal meal;
+  final int index;
   final VoidCallback onAddFoodManual;
   final VoidCallback onAddFoodByPhoto;
   final void Function(String entryId) onRemoveFood;
 
   const _MealCard({
+    super.key,
     required this.meal,
+    required this.index,
     required this.onAddFoodManual,
     required this.onAddFoodByPhoto,
     required this.onRemoveFood,
@@ -255,7 +275,22 @@ class _MealCard extends StatelessWidget {
           title: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(meal.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+              Expanded(
+                child: Row(
+                  children: [
+                    ReorderableDragStartListener(
+                      index: index,
+                      child: const Padding(
+                        padding: EdgeInsets.only(right: 10),
+                        child: Icon(Icons.drag_indicator_rounded, color: AppColors.textSecondary, size: 20),
+                      ),
+                    ),
+                    Flexible(
+                      child: Text(meal.name, style: const TextStyle(fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                ),
+              ),
               Text('${meal.totalCalories} kcal', style: const TextStyle(color: AppColors.textSecondary)),
             ],
           ),
@@ -280,7 +315,7 @@ class _MealCard extends StatelessWidget {
                     child: OutlinedButton.icon(
                       onPressed: onAddFoodManual,
                       icon: const Icon(Icons.edit_note_rounded, size: 16),
-                      label: const Text('Texto (IA)'),
+                      label: const Text('Texto'),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -288,7 +323,7 @@ class _MealCard extends StatelessWidget {
                     child: ElevatedButton.icon(
                       onPressed: onAddFoodByPhoto,
                       icon: const Icon(Icons.camera_alt_rounded, size: 16),
-                      label: const Text('Foto (IA)'),
+                      label: const Text('Foto'),
                     ),
                   ),
                 ],
