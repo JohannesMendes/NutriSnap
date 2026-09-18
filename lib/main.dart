@@ -14,22 +14,125 @@ import 'screens/license_gate.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  try {
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Armazenamento local (Hive) — tudo fica salvo no aparelho, sem servidor.
-  await LocalStorageService.init();
-  await NotificationService.init();
+    // Armazenamento local (Hive) — tudo fica salvo no aparelho, sem servidor.
+    await LocalStorageService.init();
+    await NotificationService.init();
 
-  // Se o usuário já tem um perfil (não é a primeira vez que abre o app),
-  // garante que os lembretes de refeição/água continuem agendados mesmo
-  // que ele nunca entre na tela de Configurações — antes, os lembretes só
-  // eram (re)agendados quando o usuário salvava as configurações.
-  if (LocalStorageService.hasProfile()) {
-    await NotificationService.requestPermission();
-    await NotificationService.rescheduleAll();
+    // Se o usuário já tem um perfil (não é a primeira vez que abre o app),
+    // garante que os lembretes de refeição/água continuem agendados mesmo
+    // que ele nunca entre na tela de Configurações — antes, os lembretes só
+    // eram (re)agendados quando o usuário salvava as configurações.
+    if (LocalStorageService.hasProfile()) {
+      await NotificationService.requestPermission();
+      await NotificationService.rescheduleAll();
+    }
+
+    runApp(const NutriSnapApp());
+  } catch (error, stackTrace) {
+    // Se a inicialização falhar (Firebase, Hive, etc.), não deixa o app
+    // travado na Splash Screen sem explicação — mostra uma tela de erro
+    // com os detalhes para facilitar o diagnóstico.
+    debugPrint('Erro na inicialização do app: $error\n$stackTrace');
+    runApp(InitErrorApp(error: error, stackTrace: stackTrace));
   }
+}
 
-  runApp(const NutriSnapApp());
+/// App mínimo exibido quando a inicialização (Firebase/Hive/etc.) falha.
+/// Mostra o erro na tela para facilitar o diagnóstico e permite tentar
+/// novamente sem precisar fechar e reabrir o app manualmente.
+class InitErrorApp extends StatelessWidget {
+  const InitErrorApp({super.key, required this.error, this.stackTrace});
+
+  final Object error;
+  final StackTrace? stackTrace;
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'NutriSnap',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.dark,
+      darkTheme: AppTheme.dark,
+      themeMode: ThemeMode.dark,
+      home: InitErrorScreen(error: error, stackTrace: stackTrace),
+    );
+  }
+}
+
+class InitErrorScreen extends StatelessWidget {
+  const InitErrorScreen({super.key, required this.error, this.stackTrace});
+
+  final Object error;
+  final StackTrace? stackTrace;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.redAccent, size: 64),
+              const SizedBox(height: 16),
+              const Text(
+                'Não foi possível iniciar o app',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Ocorreu um erro ao conectar com os serviços do NutriSnap. '
+                'Verifique sua conexão com a internet e tente novamente. '
+                'Se o problema persistir, envie o detalhe técnico abaixo ao suporte.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 20),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 220),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.black45,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.redAccent.withOpacity(0.4)),
+                ),
+                child: SingleChildScrollView(
+                  child: SelectableText(
+                    error.toString(),
+                    style: const TextStyle(
+                      color: Colors.redAccent,
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: () {
+                  // Reinicia o fluxo de inicialização do zero.
+                  main();
+                },
+                icon: const Icon(Icons.refresh),
+                label: const Text('Tentar novamente'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class NutriSnapApp extends StatelessWidget {
