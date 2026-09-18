@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
 import '../../services/local_storage_service.dart';
 import '../onboarding/goal_calculator_screen.dart';
 import '../home/home_screen.dart';
@@ -54,33 +53,18 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      // Mesma cor de fundo da logo (extraída do PNG enviado), pra a
+      // splash ficar visualmente idêntica à marca — sem borda ou "caixa"
+      // em volta da imagem.
+      backgroundColor: const Color(0xFF00BF63),
       body: Center(
         child: FadeTransition(
           opacity: _fade,
           child: ScaleTransition(
             scale: _scale,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(28),
-                    boxShadow: [
-                      BoxShadow(color: AppColors.primary.withOpacity(0.25), blurRadius: 40, spreadRadius: 4),
-                    ],
-                  ),
-                  child: const Icon(Icons.eco_rounded, size: 56, color: AppColors.primary),
-                ),
-                const SizedBox(height: 20),
-                const Text('NutriSnap',
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                const SizedBox(height: 6),
-                const Text('Sua evolução, todo dia.',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-              ],
+            child: Image.asset(
+              'assets/images/logo_lockup.png',
+              width: 260,
             ),
           ),
         ),

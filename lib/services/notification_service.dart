@@ -157,6 +157,8 @@ class NotificationService {
     if (!_initialized) await init();
     await _plugin.cancelAll();
     final settings = LocalStorageService.loadReminderSettings();
+    final mealsEnabled = settings['meals_enabled'] != 'false';
+    final waterEnabled = settings['water_enabled'] != 'false';
     final exact = await _canScheduleExactAlarms();
     if (!exact) {
       debugPrint(
@@ -166,50 +168,54 @@ class NotificationService {
       );
     }
 
-    await _scheduleDaily(
-      id: 1,
-      title: 'Café da manhã 🍳',
-      body: 'Hora de registrar seu café da manhã no NutriSnap.',
-      hour: _parseHour(settings['breakfast']!),
-      minute: _parseMinute(settings['breakfast']!),
-      channel: _mealChannel,
-      exact: exact,
-    );
-    await _scheduleDaily(
-      id: 2,
-      title: 'Almoço 🍽️',
-      body: 'Hora de registrar seu almoço no NutriSnap.',
-      hour: _parseHour(settings['lunch']!),
-      minute: _parseMinute(settings['lunch']!),
-      channel: _mealChannel,
-      exact: exact,
-    );
-    await _scheduleDaily(
-      id: 3,
-      title: 'Jantar 🌙',
-      body: 'Hora de registrar seu jantar no NutriSnap.',
-      hour: _parseHour(settings['dinner']!),
-      minute: _parseMinute(settings['dinner']!),
-      channel: _mealChannel,
-      exact: exact,
-    );
-
-    // Lembretes de água: espalhados entre o início e o fim do período,
-    // a cada N horas configuradas.
-    final startHour = _parseHour(settings['water_start']!);
-    final endHour = _parseHour(settings['water_end']!);
-    final interval = int.parse(settings['water_interval_hours']!);
-    var id = 100;
-    for (var hour = startHour; hour <= endHour; hour += interval) {
+    if (mealsEnabled) {
       await _scheduleDaily(
-        id: id++,
-        title: 'Beba água 💧',
-        body: 'Não esqueça de registrar sua ingestão de água.',
-        hour: hour,
-        minute: 0,
-        channel: _waterChannel,
+        id: 1,
+        title: 'Café da manhã 🍳',
+        body: 'Hora de registrar seu café da manhã no NutriSnap.',
+        hour: _parseHour(settings['breakfast']!),
+        minute: _parseMinute(settings['breakfast']!),
+        channel: _mealChannel,
         exact: exact,
       );
+      await _scheduleDaily(
+        id: 2,
+        title: 'Almoço 🍽️',
+        body: 'Hora de registrar seu almoço no NutriSnap.',
+        hour: _parseHour(settings['lunch']!),
+        minute: _parseMinute(settings['lunch']!),
+        channel: _mealChannel,
+        exact: exact,
+      );
+      await _scheduleDaily(
+        id: 3,
+        title: 'Jantar 🌙',
+        body: 'Hora de registrar seu jantar no NutriSnap.',
+        hour: _parseHour(settings['dinner']!),
+        minute: _parseMinute(settings['dinner']!),
+        channel: _mealChannel,
+        exact: exact,
+      );
+    }
+
+    if (waterEnabled) {
+      // Lembretes de água: espalhados entre o início e o fim do período,
+      // a cada N horas configuradas.
+      final startHour = _parseHour(settings['water_start']!);
+      final endHour = _parseHour(settings['water_end']!);
+      final interval = int.parse(settings['water_interval_hours']!);
+      var id = 100;
+      for (var hour = startHour; hour <= endHour; hour += interval) {
+        await _scheduleDaily(
+          id: id++,
+          title: 'Beba água 💧',
+          body: 'Não esqueça de registrar sua ingestão de água.',
+          hour: hour,
+          minute: 0,
+          channel: _waterChannel,
+          exact: exact,
+        );
+      }
     }
   }
 }

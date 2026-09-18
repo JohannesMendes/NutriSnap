@@ -104,27 +104,33 @@ class LocalStorageService {
   // guarda a chave só no servidor. Ver lib/config/app_config.dart e
   // lib/services/gemini_service.dart.
 
-  /// Horários dos lembretes, salvos como "HH:mm". Chaves: breakfast, lunch,
-  /// dinner, water_start, water_end, water_interval_hours.
+  /// Horários dos lembretes, salvos como "HH:mm", mais as chaves
+  /// "meals_enabled" e "water_enabled" ("true"/"false") que ligam/desligam
+  /// cada grupo de lembrete sem apagar os horários já configurados.
   static Future<void> saveReminderSettings(Map<String, String> settings) async {
     final box = Hive.box(_profileBox);
     await box.put('reminder_settings', jsonEncode(settings));
   }
 
   static Map<String, String> loadReminderSettings() {
+    const defaults = {
+      'breakfast': '08:00',
+      'lunch': '12:30',
+      'dinner': '19:30',
+      'water_start': '08:00',
+      'water_end': '22:00',
+      'water_interval_hours': '2',
+      'meals_enabled': 'true',
+      'water_enabled': 'true',
+    };
     final box = Hive.box(_profileBox);
     final raw = box.get('reminder_settings');
-    if (raw == null) {
-      return {
-        'breakfast': '08:00',
-        'lunch': '12:30',
-        'dinner': '19:30',
-        'water_start': '08:00',
-        'water_end': '22:00',
-        'water_interval_hours': '2',
-      };
-    }
-    return Map<String, String>.from(jsonDecode(raw));
+    if (raw == null) return Map<String, String>.from(defaults);
+    // Faz merge com os padrões: usuários que salvaram configurações antes
+    // dessas duas chaves existirem não têm "meals_enabled"/"water_enabled"
+    // salvos ainda — sem o merge, o app quebraria ao ler settings['meals_enabled']!.
+    final saved = Map<String, String>.from(jsonDecode(raw));
+    return {...defaults, ...saved};
   }
 
   /// Retorna as refeições do dia informado. A ESTRUTURA de refeições

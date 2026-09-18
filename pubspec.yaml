@@ -19,11 +19,33 @@ dependencies:
   http: ^1.2.2
   image_picker: ^1.1.2
   gal: ^2.3.0
+  firebase_core: ^3.6.0
+  firebase_auth: ^5.3.1
+  firebase_remote_config: ^5.1.3
+  package_info_plus: ^8.0.2
+  url_launcher: ^6.3.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/
+
+# Gera o ícone do app (launcher) a partir da logo nova em todas as
+# resoluções/plataformas. Rodar `dart run flutter_launcher_icons` depois de
+# `flutter pub get` (o workflow do GitHub Actions já faz isso automaticamente).
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/app_icon.png"
+  # Ícone adaptativo do Android: fundo sólido na mesma cor da logo + a
+  # marca (garfo/colher) centralizada, evitando que o Android recorte o
+  # texto ou deforme a imagem em formatos de ícone diferentes (círculo,
+  # quadrado arredondado, etc. — cada fabricante usa um).
+  adaptive_icon_background: "#00BF63"
+  adaptive_icon_foreground: "assets/images/app_icon.png"

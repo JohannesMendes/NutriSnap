@@ -7,7 +7,7 @@ class AppColors {
   static const background = Color(0xFF0E0F13);
   static const surface = Color(0xFF1A1B21);
   static const surfaceLight = Color(0xFF24262E);
-  static const primary = Color(0xFF6EE7B7); // verde-menta (saúde/energia)
+  static const primary = Color(0xFF00BF63); // verde da marca (logo nova)
   static const secondary = Color(0xFFF2C078); // dourado suave (premium)
   static const danger = Color(0xFFEF6F6C);
   static const water = Color(0xFF5DB8F0);

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../services/local_storage_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/auth_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -13,12 +14,16 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late Map<String, String> _reminders;
   late bool _savePhotosToGallery;
+  late bool _mealsEnabled;
+  late bool _waterEnabled;
 
   @override
   void initState() {
     super.initState();
     _reminders = LocalStorageService.loadReminderSettings();
     _savePhotosToGallery = LocalStorageService.loadSavePhotosToGallery();
+    _mealsEnabled = _reminders['meals_enabled'] != 'false';
+    _waterEnabled = _reminders['water_enabled'] != 'false';
   }
 
   Future<void> _pickTime(String key) async {
@@ -35,6 +40,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _save() async {
+    _reminders['meals_enabled'] = _mealsEnabled.toString();
+    _reminders['water_enabled'] = _waterEnabled.toString();
     await LocalStorageService.saveReminderSettings(_reminders);
     await LocalStorageService.setSavePhotosToGallery(_savePhotosToGallery);
     await LocalStorageService.setAskedGalleryPreference(true);
@@ -53,42 +60,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Text('Scanner de foto (IA)', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.all(12),
-            margin: const EdgeInsets.only(bottom: 10),
-            decoration: BoxDecoration(
-              color: AppColors.surfaceLight,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.verified_user_rounded, color: AppColors.primary, size: 18),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'O reconhecimento de alimentos por foto e por texto roda em um '
-                    'servidor seguro — nenhuma chave de API fica guardada ou '
-                    'exposta no aparelho.',
-                    style: TextStyle(color: AppColors.primary, fontSize: 12),
-                  ),
-                ),
-              ],
+          Text('Lembretes de refeição', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 10),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Ativar lembretes de refeição'),
+            value: _mealsEnabled,
+            onChanged: (v) => setState(() => _mealsEnabled = v),
+          ),
+          Opacity(
+            opacity: _mealsEnabled ? 1 : 0.4,
+            child: IgnorePointer(
+              ignoring: !_mealsEnabled,
+              child: Column(
+                children: [
+                  _TimeRow(label: 'Café da manhã', value: _reminders['breakfast']!, onTap: () => _pickTime('breakfast')),
+                  _TimeRow(label: 'Almoço', value: _reminders['lunch']!, onTap: () => _pickTime('lunch')),
+                  _TimeRow(label: 'Jantar', value: _reminders['dinner']!, onTap: () => _pickTime('dinner')),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 28),
-          Text('Lembretes de refeição', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 10),
-          _TimeRow(label: 'Café da manhã', value: _reminders['breakfast']!, onTap: () => _pickTime('breakfast')),
-          _TimeRow(label: 'Almoço', value: _reminders['lunch']!, onTap: () => _pickTime('lunch')),
-          _TimeRow(label: 'Jantar', value: _reminders['dinner']!, onTap: () => _pickTime('dinner')),
-          const SizedBox(height: 28),
           Text('Lembretes de água', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 10),
-          _TimeRow(label: 'Início', value: _reminders['water_start']!, onTap: () => _pickTime('water_start')),
-          _TimeRow(label: 'Fim', value: _reminders['water_end']!, onTap: () => _pickTime('water_end')),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Ativar lembretes de água'),
+            value: _waterEnabled,
+            onChanged: (v) => setState(() => _waterEnabled = v),
+          ),
+          Opacity(
+            opacity: _waterEnabled ? 1 : 0.4,
+            child: IgnorePointer(
+              ignoring: !_waterEnabled,
+              child: Column(
+                children: [
+                  _TimeRow(label: 'Início', value: _reminders['water_start']!, onTap: () => _pickTime('water_start')),
+                  _TimeRow(label: 'Fim', value: _reminders['water_end']!, onTap: () => _pickTime('water_end')),
+                ],
+              ),
+            ),
+          ),
           const SizedBox(height: 28),
           Text('Fotos das refeições', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 10),
@@ -106,6 +119,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 28),
           ElevatedButton(onPressed: _save, child: const Text('Salvar configurações')),
+          const SizedBox(height: 28),
+          Text('Conta', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger, side: const BorderSide(color: AppColors.danger)),
+            onPressed: () async {
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (_) => AlertDialog(
+                  backgroundColor: AppColors.surface,
+                  title: const Text('Sair da conta?'),
+                  content: const Text('Você vai precisar entrar de novo pra usar o app.'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancelar')),
+                    ElevatedButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Sair')),
+                  ],
+                ),
+              );
+              if (confirmed == true) {
+                // Não navega manualmente — o AuthGate detecta o logout e
+                // troca pra tela de login sozinho.
+                await AuthService.signOut();
+              }
+            },
+            icon: const Icon(Icons.logout_rounded),
+            label: const Text('Sair da conta'),
+          ),
         ],
       ),
     );

@@ -33,6 +33,12 @@ jobs:
           sed -i "s#<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\">#<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\">\n$PERMS#" "$MANIFEST"
           grep -q "android.permission.INTERNET" "$MANIFEST" && grep -q "SCHEDULE_EXACT_ALARM" "$MANIFEST" && echo "Permissões adicionadas com sucesso" || (echo "Falha ao adicionar permissões" && exit 1)
 
+      - name: Ajustar o nome exibido no launcher do celular
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          sed -i 's#android:label="[^"]*"#android:label="NutriSnap"#' "$MANIFEST"
+          grep -q 'android:label="NutriSnap"' "$MANIFEST" && echo "Nome do app ajustado" || (echo "Falha ao ajustar o nome" && exit 1)
+
       - name: Ativar core library desugaring (necessário pra notificações)
         shell: python3 {0}
         run: |
@@ -94,6 +100,35 @@ jobs:
 
       - name: Instalar dependências do projeto
         run: flutter pub get
+
+      - name: Garantir minSdkVersion 23 (exigido pelo Firebase Auth)
+        shell: python3 {0}
+        run: |
+          import os, re
+
+          kts_path = "android/app/build.gradle.kts"
+          groovy_path = "android/app/build.gradle"
+          is_kts = os.path.exists(kts_path)
+          path = kts_path if is_kts else groovy_path
+
+          with open(path, "r") as f:
+              content = f.read()
+
+          if is_kts:
+              # Templates novos usam "minSdk = flutter.minSdkVersion" (variável),
+              # que hoje aponta pra uma versão menor que 23 — trocamos pelo
+              # valor fixo mínimo exigido pelo Firebase Auth.
+              content = re.sub(r"minSdk\s*=\s*[^\n]+", "minSdk = 23", content, count=1)
+          else:
+              content = re.sub(r"minSdkVersion\s+[^\n]+", "minSdkVersion 23", content, count=1)
+
+          with open(path, "w") as f:
+              f.write(content)
+
+          print(f"Patched minSdk in {path}")
+
+      - name: Gerar ícone do app a partir da logo nova
+        run: dart run flutter_launcher_icons
 
       - name: Compilar o APK (release)
         # A chave do Gemini não vai mais pro app: ela mora só no backend
