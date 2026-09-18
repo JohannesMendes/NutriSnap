@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../config/plans_config.dart';
 import '../../services/auth_service.dart';
-import '../../services/user_profile_service.dart';
+import '../../services/payment_request_service.dart';
 
 /// Paywall mostrada quando o trial de 15 dias expira (ou pra quem quiser
 /// assinar antes disso, se você chamar essa tela de outro lugar). Os 3
@@ -27,28 +27,84 @@ class _PaywallScreenState extends State<PaywallScreen> {
     _selectedPlanId = (highlighted.isNotEmpty ? highlighted.first : kSubscriptionPlans.first).id;
   }
 
-  Future<void> _subscribe() async {
-    final uid = AuthService.currentUser?.uid;
-    if (uid == null) return;
+  /// Sem gateway automático (Stripe/Mercado Pago) por enquanto, o
+  /// pagamento é manual via PIX: o usuário paga fora do app e depois
+  /// aperta "Já paguei", que só registra uma solicitação pendente — o
+  /// admin confere no banco e libera pelo painel de aprovações. Nada
+  /// aqui ativa o plano sozinho.
+  Future<void> _claimPayment() async {
+    final user = AuthService.currentUser;
+    if (user == null) return;
+
+    final contaPagamento = await _askPaymentAccountName();
+    if (contaPagamento == null || contaPagamento.trim().isEmpty) return;
+
     setState(() => _isSubmitting = true);
     try {
-      // Aqui é onde entraria a integração real de pagamento (Stripe, Play
-      // Billing, etc.) antes de liberar o acesso. Por enquanto, simula a
-      // confirmação e já atualiza o plano no Firestore — o LicenseGate
-      // libera o app automaticamente assim que o documento muda.
-      await UserProfileService.activatePlan(uid, _selectedPlanId);
+      await PaymentRequestService.createRequest(
+        uid: user.uid,
+        nome: user.displayName ?? '',
+        email: user.email,
+        planoId: _selectedPlanId,
+        nomeContaPagamento: contaPagamento.trim(),
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Assinatura confirmada! Aproveite o NutriSnap 🎉')),
+        const SnackBar(
+          content: Text('Recebemos sua solicitação! Assim que confirmarmos o PIX, seu plano é liberado.'),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Não foi possível confirmar a assinatura. Tente novamente.')),
+        const SnackBar(content: Text('Não foi possível enviar sua solicitação. Tente novamente.')),
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
+  }
+
+  /// Pede o nome da conta usada pra pagar o PIX (o que aparece no
+  /// comprovante/extrato) — é o dado que o admin usa pra achar o
+  /// pagamento no banco na hora de aprovar.
+  Future<String?> _askPaymentAccountName() async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        title: const Text('Confirmar pagamento'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Informe o nome da conta que você usou pra pagar o PIX '
+              '(o mesmo nome que aparece no seu comprovante), pra '
+              'conseguirmos localizar seu pagamento.',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(hintText: 'Nome usado na conta do PIX'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
+            child: const Text('Enviar'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -82,14 +138,14 @@ class _PaywallScreenState extends State<PaywallScreen> {
             ],
             const SizedBox(height: 12),
             ElevatedButton(
-              onPressed: _isSubmitting ? null : _subscribe,
+              onPressed: _isSubmitting ? null : _claimPayment,
               child: _isSubmitting
                   ? const SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.black),
                     )
-                  : const Text('Assinar agora'),
+                  : const Text('Já paguei'),
             ),
             const SizedBox(height: 12),
             Center(

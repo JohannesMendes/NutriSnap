@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../services/auth_service.dart';
 import '../../services/user_profile_service.dart';
+import '../admin/admin_approval_screen.dart';
 import '../paywall/paywall_screen.dart';
 
 /// Aba/tela de Perfil: mostra os dados da conta e o status da
@@ -50,6 +51,10 @@ class ProfileScreen extends StatelessWidget {
                       const _LoadingPlanCard()
                     else
                       _PlanCard(profile: profile),
+                    if (profile != null && profile.isAdmin) ...[
+                      const SizedBox(height: 20),
+                      const _AdminPanelCard(),
+                    ],
                   ],
                 );
               },
@@ -98,6 +103,42 @@ class _AccountCard extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Só aparece pra contas com `tipo_plano == 'admin'` — atalho pro painel
+/// de aprovações de pagamento manual (ver AdminApprovalScreen).
+class _AdminPanelCard extends StatelessWidget {
+  const _AdminPanelCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.secondary, width: 1.2),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.admin_panel_settings_rounded, color: AppColors.secondary),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Aprovações pendentes',
+              style: TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w600),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AdminApprovalScreen()),
+            ),
+            child: const Text('Abrir'),
           ),
         ],
       ),
