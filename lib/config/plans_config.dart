@@ -35,16 +35,16 @@ class SubscriptionPlan {
 /// alto de propósito, fazendo o Ouro (mensal) parecer uma economia óbvia
 /// e o Diamante (anual) parecer o melhor negócio de todos.
 ///
-///   - Prata    (semanal): R$ 10,00/semana -> ancoragem alta
-///   - Ouro     (mensal):  R$ 24,90/mês    -> bem mais barato que
-///     assinar o Prata 4x seguidas no mês (R$ 40,00)
-///   - Diamante (anual):   R$ 149,90/ano   -> equivale a ~R$ 12,49/mês,
+///   - Prata    (semanal): R$ 8,90/semana  -> ancoragem alta
+///   - Ouro     (mensal):  R$ 14,90/mês    -> bem mais barato que
+///     assinar o Prata 4x seguidas no mês (R$ 35,60)
+///   - Diamante (anual):   R$ 129,90/ano   -> equivale a ~R$ 10,83/mês,
 ///     o mais vantajoso de todos, com badge e destaque visual maiores
 const List<SubscriptionPlan> kSubscriptionPlans = [
   SubscriptionPlan(
     id: 'semanal',
     title: 'Prata',
-    priceLabel: 'R\$ 10,00',
+    priceLabel: 'R\$ 8,90',
     periodLabel: '/semana',
     features: [
       'Scanner de foto por IA ilimitado',
@@ -55,7 +55,7 @@ const List<SubscriptionPlan> kSubscriptionPlans = [
   SubscriptionPlan(
     id: 'mensal',
     title: 'Ouro',
-    priceLabel: 'R\$ 24,90',
+    priceLabel: 'R\$ 14,90',
     periodLabel: '/mês',
     badgeLabel: 'Economize vs. semanal',
     features: [
@@ -66,13 +66,13 @@ const List<SubscriptionPlan> kSubscriptionPlans = [
   SubscriptionPlan(
     id: 'anual',
     title: 'Diamante',
-    priceLabel: 'R\$ 149,90',
+    priceLabel: 'R\$ 129,90',
     periodLabel: '/ano',
     badgeLabel: 'Mais Vantajoso',
     highlight: true,
     features: [
       'Tudo do plano Ouro',
-      'Equivale a R\$ 12,49/mês',
+      'Equivale a R\$ 10,83/mês',
       'Melhor custo-benefício de todos os planos',
     ],
   ),
