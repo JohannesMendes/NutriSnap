@@ -15,7 +15,13 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    // Evita o erro "[core/duplicate-app] A Firebase App named "[DEFAULT]"
+    // already exists" que pode ocorrer quando o engine do Flutter é
+    // reaproveitado (ex.: Activity recriada pelo Android) e o main() roda
+    // de novo sem o Firebase ter sido de fato derrubado.
+    if (Firebase.apps.isEmpty) {
+      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    }
 
     // Armazenamento local (Hive) — tudo fica salvo no aparelho, sem servidor.
     await LocalStorageService.init();
