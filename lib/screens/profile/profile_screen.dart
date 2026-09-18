@@ -20,7 +20,7 @@ class ProfileScreen extends StatelessWidget {
       appBar: AppBar(title: const Text('Perfil')),
       body: uid == null
           ? const Center(child: Text('Nenhuma conta autenticada.'))
-          : StreamBuilder<UserProfile?>(
+          : StreamBuilder<AccountStatus?>(
               stream: UserProfileService.watchProfile(uid),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -128,7 +128,7 @@ class _LoadingPlanCard extends StatelessWidget {
 /// total (admin/ilimitado), contador de dias restantes (trial) e o
 /// botão de gerenciar/mudar de plano.
 class _PlanCard extends StatelessWidget {
-  final UserProfile profile;
+  final AccountStatus profile;
   const _PlanCard({required this.profile});
 
   @override

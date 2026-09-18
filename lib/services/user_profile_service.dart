@@ -7,13 +7,17 @@ import '../config/plans_config.dart';
 /// de administração/teste.
 const _unlimitedPlanTypes = {'ilimitado', 'admin'};
 
-class UserProfile {
+/// Status da conta/assinatura vindo do Firestore (coleção `usuarios`) —
+/// NÃO confundir com `UserProfile` de `models/user_profile.dart`, que é
+/// o perfil local (nome, altura, peso, metas) usado nos cálculos
+/// nutricionais. Esta classe é só sobre plano/trial/bloqueio.
+class AccountStatus {
   final String uid;
   final DateTime dataCriacao;
   final String tipoPlano; // "trial" | "ilimitado" | "admin" | id de um plano pago (ver plans_config.dart)
   final bool bloqueado;
 
-  const UserProfile({
+  const AccountStatus({
     required this.uid,
     required this.dataCriacao,
     required this.tipoPlano,
@@ -57,10 +61,10 @@ class UserProfile {
   /// aqui — o app só precisa saber que `hasAccess` é true pra eles.
   int? get daysRemaining => isTrial ? trialDaysRemaining : null;
 
-  factory UserProfile.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+  factory AccountStatus.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? {};
     final ts = data['data_criacao'];
-    return UserProfile(
+    return AccountStatus(
       uid: doc.id,
       dataCriacao: ts is Timestamp ? ts.toDate() : DateTime.now(),
       tipoPlano: (data['tipo_plano'] as String?) ?? 'trial',
@@ -93,10 +97,10 @@ class UserProfileService {
   /// Stream em tempo real do perfil — assim, se o admin liberar/bloquear
   /// a conta ou o usuário assinar um plano em outro aparelho, o app
   /// reage na hora, sem precisar reabrir.
-  static Stream<UserProfile?> watchProfile(String uid) {
+  static Stream<AccountStatus?> watchProfile(String uid) {
     return _collection.doc(uid).snapshots().map((doc) {
       if (!doc.exists) return null;
-      return UserProfile.fromDoc(doc);
+      return AccountStatus.fromDoc(doc);
     });
   }
 
