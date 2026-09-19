@@ -137,6 +137,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
               const SizedBox(height: 12),
             ],
             const SizedBox(height: 12),
+            const _PixPaymentCard(),
+            const SizedBox(height: 20),
             ElevatedButton(
               onPressed: _isSubmitting ? null : _claimPayment,
               child: _isSubmitting
@@ -263,6 +265,49 @@ class _PlanCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Card com o QR code fixo do PIX pra pagamento manual (sem gateway
+/// automático) — a pessoa escaneia, paga o valor do plano escolhido e
+/// só depois aperta "Já paguei" logo abaixo pra registrar a solicitação
+/// que o admin confere e aprova.
+class _PixPaymentCard extends StatelessWidget {
+  const _PixPaymentCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            'Pague com PIX',
+            style: TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Escaneie o QR code no app do seu banco pra pagar o valor do plano escolhido acima.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.4),
+          ),
+          const SizedBox(height: 14),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.asset(
+              'assets/images/pix_qr_code.png',
+              width: 200,
+              height: 200,
+              fit: BoxFit.cover,
+            ),
+          ),
+        ],
       ),
     );
   }
