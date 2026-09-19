@@ -262,6 +262,58 @@ jobs:
       - name: Gerar ícone do app a partir da logo nova
         run: dart run flutter_launcher_icons
 
+      - name: Desativar minificação (R8) na build de release
+        # Os templates novos do Flutter vêm com R8/shrinking ligados por
+        # padrão na build de release. O R8 remove as informações de tipo
+        # genérico (generic signatures) que o Gson usa por baixo dos panos
+        # no firebase_remote_config, causando o crash "TypeToken must be
+        # created with a type argument..." assim que o app tenta checar
+        # atualização ao abrir. Como o APK é distribuído fora de loja (não
+        # tem limite de tamanho de download pressionando), a solução mais
+        # segura é simplesmente desligar a minificação em vez de caçar
+        # regra de ProGuard/R8 pra cada plugin usado no projeto.
+        shell: python3 {0}
+        run: |
+          import os, re
+
+          kts_path = "android/app/build.gradle.kts"
+          groovy_path = "android/app/build.gradle"
+          is_kts = os.path.exists(kts_path)
+          path = kts_path if is_kts else groovy_path
+
+          with open(path, "r") as f:
+              content = f.read()
+
+          if is_kts:
+              # Substitui se já existir uma linha "isMinifyEnabled = ..."
+              if re.search(r"isMinifyEnabled\s*=", content):
+                  content = re.sub(r"isMinifyEnabled\s*=\s*\w+", "isMinifyEnabled = false", content)
+              else:
+                  content = re.sub(r"(release\s*\{\n)", r"\1            isMinifyEnabled = false\n", content, count=1)
+
+              if re.search(r"isShrinkResources\s*=", content):
+                  content = re.sub(r"isShrinkResources\s*=\s*\w+", "isShrinkResources = false", content)
+              else:
+                  content = re.sub(r"(release\s*\{\n)", r"\1            isShrinkResources = false\n", content, count=1)
+          else:
+              if re.search(r"minifyEnabled\s+\w+", content):
+                  content = re.sub(r"minifyEnabled\s+\w+", "minifyEnabled false", content)
+              else:
+                  content = re.sub(r"(release\s*\{\n)", r"\1            minifyEnabled false\n", content, count=1)
+
+              if re.search(r"shrinkResources\s+\w+", content):
+                  content = re.sub(r"shrinkResources\s+\w+", "shrinkResources false", content)
+              else:
+                  content = re.sub(r"(release\s*\{\n)", r"\1            shrinkResources false\n", content, count=1)
+
+          with open(path, "w") as f:
+              f.write(content)
+
+          assert ("isMinifyEnabled = false" in content) or ("minifyEnabled false" in content), \
+              "Não achei o bloco 'release {' pra desligar a minificação — confira o template do Flutter"
+
+          print(f"Minificação desativada em {path}")
+
       - name: Compilar o APK (release)
         # A chave do Gemini não vai mais pro app: ela mora só no backend
         # (Firebase Cloud Functions, como Secret). Aqui só passamos a URL
