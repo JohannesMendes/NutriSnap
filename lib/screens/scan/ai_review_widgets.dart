@@ -138,25 +138,57 @@ class EditableFoodCard extends StatelessWidget {
   }
 }
 
+/// Converte um valor numérico vindo do Gemini pra double, de forma
+/// tolerante: o modelo normalmente devolve um `num` de verdade (por causa
+/// do `response_mime_type: application/json`), mas às vezes devolve o
+/// mesmo valor como `String` (ex: "150" em vez de 150), ou vírgula em vez
+/// de ponto decimal. Um cast direto (`as num?`) quebra nesses casos com um
+/// TypeError que não é um [GeminiApiException] — e antes isso derrubava o
+/// parsing inteiro do item, fazendo a tela de scan mostrar sempre "Algo deu
+/// errado ao analisar a foto", mesmo com o backend respondendo certinho.
+double? _toDouble(dynamic value) {
+  if (value == null) return null;
+  if (value is num) return value.toDouble();
+  if (value is String) {
+    return double.tryParse(value.trim().replaceAll(',', '.'));
+  }
+  return null;
+}
+
+int? _toInt(dynamic value) {
+  final d = _toDouble(value);
+  return d?.round();
+}
+
 /// Converte a lista bruta vinda do Gemini (mesmo formato usado pra foto e
 /// pra texto) em [FoodEntry]s prontos, já com a contagem/unidade visível
-/// no nome quando fizer sentido (ex: "Pão de forma (4 fatia)").
+/// no nome quando fizer sentido (ex: "Pão de forma (4 fatia)"). Itens
+/// individualmente malformados são pulados (com log) em vez de derrubar a
+/// lista inteira.
 List<FoodEntry> parseGeminiFoodList(List<Map<String, dynamic>> raw) {
-  return raw.map((m) {
-    final baseName = (m['name'] ?? 'Alimento').toString();
-    final quantity = (m['quantity'] as num?)?.toInt();
-    final unit = (m['unit'] as String?)?.trim();
-    final displayName = (quantity != null && quantity > 1 && unit != null && unit.isNotEmpty)
-        ? '$baseName ($quantity $unit)'
-        : baseName;
-    return FoodEntry(
-      id: '${DateTime.now().microsecondsSinceEpoch}_$baseName',
-      name: displayName,
-      grams: (m['grams'] as num?)?.toDouble() ?? 0,
-      calories: (m['calories'] as num?)?.round() ?? 0,
-      proteinG: (m['protein_g'] as num?)?.toDouble() ?? 0,
-      carbsG: (m['carbs_g'] as num?)?.toDouble() ?? 0,
-      fatG: (m['fat_g'] as num?)?.toDouble() ?? 0,
-    );
-  }).toList();
+  final entries = <FoodEntry>[];
+  for (final m in raw) {
+    try {
+      final baseName = (m['name'] ?? 'Alimento').toString();
+      final quantity = _toInt(m['quantity']);
+      final unit = m['unit']?.toString().trim();
+      final displayName = (quantity != null && quantity > 1 && unit != null && unit.isNotEmpty)
+          ? '$baseName ($quantity $unit)'
+          : baseName;
+      entries.add(FoodEntry(
+        id: '${DateTime.now().microsecondsSinceEpoch}_${entries.length}_$baseName',
+        name: displayName,
+        grams: _toDouble(m['grams']) ?? 0,
+        calories: _toInt(m['calories']) ?? 0,
+        proteinG: _toDouble(m['protein_g']) ?? 0,
+        carbsG: _toDouble(m['carbs_g']) ?? 0,
+        fatG: _toDouble(m['fat_g']) ?? 0,
+      ));
+    } catch (_) {
+      // Item pontualmente malformado — ignora só esse item, não derruba a
+      // análise inteira (o usuário ainda consegue conferir/adicionar o
+      // resto e, se quiser, adicionar esse item manualmente).
+    }
+  }
+  return entries;
 }
