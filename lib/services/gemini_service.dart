@@ -82,6 +82,12 @@ class GeminiService {
       throw GeminiApiException.fromNetworkError(e);
     } on http.ClientException catch (e) {
       throw GeminiApiException.fromNetworkError(e);
+    } catch (e) {
+      // Qualquer outra falha ao montar/enviar a requisição (URI inválida,
+      // sem host configurado, etc.) — antes isso escapava sem virar
+      // GeminiApiException e a tela mostrava uma mensagem genérica que
+      // escondia a causa real. Agora sempre vira um erro de rede tratável.
+      throw GeminiApiException.fromNetworkError(e);
     }
 
     if (response.statusCode != 200) {
