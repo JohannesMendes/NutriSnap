@@ -35,8 +35,12 @@ class GeminiApiException implements Exception {
       friendly = 'Não consegui processar essa solicitação. Tente descrever de outra forma.';
     } else if (statusCode >= 500) {
       friendly = 'O servidor da IA está com instabilidade no momento. Tente novamente em instantes.';
+    } else if (statusCode == 404) {
+      friendly = 'Servidor da IA nao encontrado (erro 404). A URL do backend no app esta incorreta.';
+    } else if (statusCode == 401 || statusCode == 403) {
+      friendly = 'Acesso ao servidor da IA bloqueado (erro $statusCode). Verifique a protecao de deploy do Vercel.';
     } else {
-      friendly = 'Algo deu errado ao falar com a IA. Tente novamente em instantes.';
+      friendly = 'Algo deu errado ao falar com a IA (erro $statusCode). Tente novamente em instantes.';
     }
     return GeminiApiException(friendly, 'HTTP $statusCode: $body');
   }

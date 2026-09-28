@@ -74,7 +74,7 @@ class _PhotoScanScreenState extends State<PhotoScanScreen> {
   Future<void> _takePhoto() async {
     final saveToGallery = await _resolveGalleryPreference();
 
-    final picked = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 80);
+    final picked = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 70, maxWidth: 1280, maxHeight: 1280);
     if (picked == null) return;
 
     final file = File(picked.path);

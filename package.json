@@ -1,0 +1,5 @@
+{
+  "name": "nutrisnap-backend",
+  "private": true,
+  "engines": { "node": "20.x" }
+}
