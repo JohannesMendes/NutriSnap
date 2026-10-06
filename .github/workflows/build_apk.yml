@@ -171,6 +171,27 @@ jobs:
           sed -i 's#android:label="[^"]*"#android:label="NutriSnap"#' "$MANIFEST"
           grep -q 'android:label="NutriSnap"' "$MANIFEST" && echo "Nome do app ajustado" || (echo "Falha ao ajustar o nome" && exit 1)
 
+      - name: Registrar receivers das notificações agendadas (sem isso os lembretes nunca disparam)
+        shell: python3 {0}
+        run: |
+          p = "android/app/src/main/AndroidManifest.xml"
+          s = open(p, encoding="utf-8").read()
+          block = """        <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+                  <receiver android:exported="false" android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+                      <intent-filter>
+                          <action android:name="android.intent.action.BOOT_COMPLETED" />
+                          <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                          <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                          <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+                      </intent-filter>
+                  </receiver>
+          """
+          if "ScheduledNotificationReceiver" not in s:
+              s = s.replace("</application>", block + "    </application>", 1)
+              open(p, "w", encoding="utf-8").write(s)
+          assert "ScheduledNotificationReceiver" in open(p, encoding="utf-8").read(), "Falha ao registrar receivers"
+          print("Receivers de notificação registrados")
+
       - name: Ativar core library desugaring (necessário pra notificações)
         shell: python3 {0}
         run: |
