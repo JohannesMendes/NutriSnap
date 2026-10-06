@@ -148,6 +148,8 @@ class _TextScanScreenState extends State<TextScanScreen> {
                       label: const Text('Adicionar item que a IA esqueceu'),
                     ),
                     const SizedBox(height: 16),
+                    EditableTotalsCard(entries: _editable),
+                    const SizedBox(height: 12),
                     ElevatedButton(
                       onPressed: _editable.isEmpty ? null : _confirmAndSave,
                       child: const Text('Confirmar e salvar no diário'),

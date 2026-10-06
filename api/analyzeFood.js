@@ -47,17 +47,39 @@ const PHOTO_PROMPT = `Você é um nutricionista analisando uma foto de comida co
    e inteiro na imagem. Na dúvida entre um valor menor e um maior, prefira o menor
    (mais realista para o que está visível).
 
+3B. ÂNCORAS DE PESO (use SEMPRE pra estimar gramas — comida cozida pesa
+   MENOS do que parece em foto). Compare com o prato/talher visível e use
+   estas referências como ponto de partida:
+   - Arroz cozido: 1 colher de sopa CHEIA ≈ 25g; 1 escumadeira/concha
+     pequena ≈ 60-80g; um monte do tamanho de um punho fechado ≈ 120-150g.
+     Ex.: 4 a 5 colheres de sopa ≈ 100-125g. Um prato raso comum, com um
+     "montinho" de arroz de lado, raramente passa de 150g.
+   - Feijão cozido (com caldo): 1 concha média ≈ 100g.
+   - Frango: pedaço pequeno tipo coxinha da asa/mini coxa/sobrecoxa
+     pequena (com osso) ≈ 30-50g; filé de frango grelhado médio (palma da
+     mão) ≈ 100-120g; cubos/iscas ≈ 15-25g cada. Se tiver osso visível,
+     NÃO conte o peso do osso como comida.
+   - Carne bovina: bife médio (palma da mão) ≈ 100-120g.
+   - Macarrão cozido: 1 pegador ≈ 110g. Batata cozida média ≈ 100-130g.
+   - Salada/folhas: 1 punhado ≈ 20-30g. Ovo cozido/frito ≈ 50g.
+   Antes de dar o número final, faça uma checagem de sanidade: um prato
+   de refeição normal inteiro costuma pesar 350-550g no total. Se a soma
+   dos seus itens passar muito disso, você está superestimando — reduza.
+   Pra superestimar menos: o tamanho do PRATO e dos TALHERES na foto é a
+   escala; um prato raso comum tem ~24-26cm de diâmetro.
+
 4. Depois de aplicar as regras acima, calcule as calorias e os macros (proteína,
    carboidrato, gordura) já como TOTAIS do item (considerando a quantidade e o
    peso real estimados), não como valores de referência por 100g.
 
 Responda APENAS com um JSON válido (sem markdown, sem texto adicional, sem
 comentários), no formato de uma lista. Para cada item, inclua os campos abaixo —
-"quantity" e "unit" documentam a contagem que você usou, e "grams"/"calories"/
+"raciocinio" (UMA frase curta: o que você contou e como chegou ao peso, usando as âncoras da regra 3B; escreva ANTES dos números), "quantity" e "unit" documentam a contagem que você usou, e "grams"/"calories"/
 os macros já devem vir multiplicados pela quantidade total:
 [
   {
     "name": "Pão de forma",
+    "raciocinio": "3 fatias visíveis, cada uma ~25g pelo tamanho em relação ao prato",
     "quantity": 3,
     "unit": "fatia",
     "grams": 75,
@@ -229,7 +251,7 @@ module.exports = async function handler(req, res) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts }],
-        generationConfig: { response_mime_type: 'application/json' },
+        generationConfig: { response_mime_type: 'application/json', temperature: 0.2 },
       }),
       signal: AbortSignal.timeout(50000),
     });

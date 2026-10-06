@@ -192,3 +192,70 @@ List<FoodEntry> parseGeminiFoodList(List<Map<String, dynamic>> raw) {
   }
   return entries;
 }
+
+
+/// Resumo com o total de tudo o que está na lista de conferência (peso,
+/// kcal e macros). Fica logo acima do botão de salvar e atualiza ao vivo
+/// conforme o usuário edita, adiciona ou remove itens.
+class EditableTotalsCard extends StatelessWidget {
+  final List<EditableEntry> entries;
+
+  const EditableTotalsCard({super.key, required this.entries});
+
+  static double _num(TextEditingController c) =>
+      double.tryParse(c.text.replaceAll(',', '.')) ?? 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final listenables = <Listenable>[
+      for (final e in entries) ...[e.grams, e.calories, e.protein, e.carbs, e.fat],
+    ];
+    return AnimatedBuilder(
+      animation: Listenable.merge(listenables),
+      builder: (context, _) {
+        double grams = 0, kcal = 0, protein = 0, carbs = 0, fat = 0;
+        for (final e in entries) {
+          grams += _num(e.grams);
+          kcal += _num(e.calories);
+          protein += _num(e.protein);
+          carbs += _num(e.carbs);
+          fat += _num(e.fat);
+        }
+        Widget cell(String value, String label) => Expanded(
+              child: Column(
+                children: [
+                  Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 11)),
+                ],
+              ),
+            );
+        return Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Total da refeição (${entries.length} ${entries.length == 1 ? 'item' : 'itens'})',
+                  style: const TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    cell('${kcal.round()}', 'kcal'),
+                    cell('${protein.toStringAsFixed(1)}g', 'proteína'),
+                    cell('${carbs.toStringAsFixed(1)}g', 'carbo'),
+                    cell('${fat.toStringAsFixed(1)}g', 'gordura'),
+                    cell('${grams.round()}g', 'peso'),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
