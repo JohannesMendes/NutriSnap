@@ -26,6 +26,11 @@ jobs:
           flutter create --platforms=android --org com.nutrisnap --project-name nutrisnap /tmp/nutrisnap_scaffold
           cp -r /tmp/nutrisnap_scaffold/android .
 
+      - name: Permissão de microfone (gravação de áudio)
+        run: |
+          sed -i 's#<application#<uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <application#' android/app/src/main/AndroidManifest.xml
+          grep -c RECORD_AUDIO android/app/src/main/AndroidManifest.xml
+
       - name: "[DEBUG] Verificar se o secret está chegando"
         run: |
           echo -n '${{ secrets.GOOGLE_SERVICES_JSON }}' | wc -c

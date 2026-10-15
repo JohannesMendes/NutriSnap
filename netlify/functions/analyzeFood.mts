@@ -99,6 +99,27 @@ os macros já devem vir multiplicados pela quantidade total:
   }
 ]`;
 
+const MEDIDAS_CASEIRAS = `8. MEDIDAS CASEIRAS (use como referência de volume/peso; se o usuário
+   der gramas ou ml explícitos, use o que ele disse):
+   - "xícara de café"/"cafezinho" = 50 ml; "xícara de chá" = 180 ml;
+     "xícara" sem especificar = 240 ml; "copo" = 200 ml (americano = 250 ml).
+   - "meia"/"meio" = 0,5; "um quarto" = 0,25; "uma" sem unidade = 1.
+   - Líquidos: 1 ml ≈ 1 g. Pós e farinhas variam muito: pese pela densidade
+     real do produto (ex.: 1 xícara de chá de farinha de trigo ≈ 120 g,
+     de aveia em flocos ≈ 80 g, de açúcar ≈ 180 g).
+   - Colher de sopa CHEIA de pó (farinha láctea, leite em pó, achocolatado,
+     aveia, whey) ≈ 15 g; RASA ≈ 8-10 g. Sem dizer, assuma rasa-cheia (~12 g).
+   - Colher de chá ≈ 5 g de pó/açúcar (3 ml de líquido); colher de café ≈ 2 g.
+   - Colher de sopa de óleo/azeite ≈ 13 g; de requeijão/creme ≈ 20 g.
+   - Se a medida for ambígua, escolha a interpretação MAIS COMUM no Brasil,
+     nunca o extremo, e continue calculando normalmente.
+`;
+
+const TRANSCRIBE_PROMPT = `Transcreva este áudio em português do Brasil EXATAMENTE como foi dito,
+palavra por palavra, sem resumir, sem corrigir e sem interpretar. Mantenha todos os números,
+quantidades, medidas e nomes de alimentos/marcas. Remova apenas pausas e sons como "hum" e "é...".
+Responda somente com a transcrição, sem aspas nem comentários.`;
+
 function buildTextPrompt(description: string): string {
   return `Você é um nutricionista experiente, especialista em culinária brasileira e em
 suplementação de academia, interpretando uma descrição em texto livre
@@ -182,6 +203,7 @@ cada alimento identificado:
    lista vazia, erro ou pedido de mais informação — sempre entrega pelo
    menos uma estimativa completa e razoável.
 
+${MEDIDAS_CASEIRAS}
 Responda APENAS com um JSON válido (sem markdown, sem texto adicional, sem
 comentários), no formato de uma lista. Para cada item, inclua os campos
 abaixo — "quantity" e "unit" documentam a quantidade/unidade que você
@@ -223,17 +245,20 @@ export default async (req: Request, _context: Context) => {
     );
   }
 
-  let payload: { mode?: string; base64Image?: string; description?: string };
+  let payload: { mode?: string; base64Image?: string; description?: string; base64Audio?: string };
   try {
     payload = await req.json();
   } catch {
     return Response.json({ error: 'Corpo da requisição precisa ser JSON válido.' }, { status: 400 });
   }
 
-  const { mode, base64Image, description } = payload;
+  const { mode, base64Image, description, base64Audio } = payload;
 
-  if (mode !== 'photo' && mode !== 'text') {
-    return Response.json({ error: 'Campo "mode" deve ser "photo" ou "text".' }, { status: 400 });
+  if (mode !== 'photo' && mode !== 'text' && mode !== 'transcribe') {
+    return Response.json({ error: 'Campo "mode" deve ser "photo", "text" ou "transcribe".' }, { status: 400 });
+  }
+  if (mode === 'transcribe' && !base64Audio) {
+    return Response.json({ error: 'Campo "base64Audio" é obrigatório para mode=transcribe.' }, { status: 400 });
   }
   if (mode === 'photo' && !base64Image) {
     return Response.json({ error: 'Campo "base64Image" é obrigatório para mode=photo.' }, { status: 400 });
@@ -243,7 +268,12 @@ export default async (req: Request, _context: Context) => {
   }
 
   const parts =
-    mode === 'photo'
+    mode === 'transcribe'
+      ? [
+          { text: TRANSCRIBE_PROMPT },
+          { inline_data: { mime_type: 'audio/wav', data: base64Audio } },
+        ]
+      : mode === 'photo'
       ? [
           { text: PHOTO_PROMPT },
           { inline_data: { mime_type: 'image/jpeg', data: base64Image } },
@@ -258,7 +288,10 @@ export default async (req: Request, _context: Context) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts }],
-        generationConfig: { response_mime_type: 'application/json', temperature: 0.2 },
+        generationConfig:
+          mode === 'transcribe'
+            ? { temperature: 0 }
+            : { response_mime_type: 'application/json', temperature: 0.2 },
       }),
       signal: AbortSignal.timeout(45000),
     });
@@ -277,6 +310,9 @@ export default async (req: Request, _context: Context) => {
     let text: unknown = data?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (typeof text !== 'string') {
       throw new Error('Resposta do Gemini sem o campo de texto esperado.');
+    }
+    if (mode === 'transcribe') {
+      return Response.json({ transcript: (text as string).trim() });
     }
     text = text.replace(/```json/g, '').replace(/```/g, '').trim();
     const items = JSON.parse(text as string);

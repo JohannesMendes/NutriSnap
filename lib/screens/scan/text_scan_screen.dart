@@ -1,4 +1,9 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 import '../../theme/app_theme.dart';
 import '../../services/gemini_service.dart';
 import 'ai_review_widgets.dart';
@@ -21,13 +26,71 @@ class _TextScanScreenState extends State<TextScanScreen> {
   String? _error;
   List<EditableEntry> _editable = [];
 
+  // Gravação de áudio -> transcrição -> cálculo automático.
+  final _recorder = AudioRecorder();
+  Timer? _autoStop;
+  bool _recording = false;
+  bool _transcribing = false;
+
   @override
   void dispose() {
+    _autoStop?.cancel();
+    _recorder.dispose();
     _descriptionCtrl.dispose();
     for (final e in _editable) {
       e.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _toggleRecording() => _recording ? _stopAndTranscribe() : _startRecording();
+
+  Future<void> _startRecording() async {
+    if (!await _recorder.hasPermission()) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Permita o uso do microfone para gravar.')),
+      );
+      return;
+    }
+    final dir = await getTemporaryDirectory();
+    final path = '${dir.path}/refeicao_${DateTime.now().millisecondsSinceEpoch}.wav';
+    // WAV 16 kHz mono: 60 s ≈ 2 MB, bem abaixo do limite da Netlify Function.
+    await _recorder.start(
+      const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 16000, numChannels: 1),
+      path: path,
+    );
+    if (!mounted) return;
+    setState(() => _recording = true);
+    _autoStop = Timer(const Duration(seconds: 60), _stopAndTranscribe);
+  }
+
+  Future<void> _stopAndTranscribe() async {
+    _autoStop?.cancel();
+    final path = await _recorder.stop();
+    if (!mounted) return;
+    setState(() {
+      _recording = false;
+      _transcribing = true;
+      _error = null;
+    });
+    if (path == null) {
+      setState(() => _transcribing = false);
+      return;
+    }
+    try {
+      final bytes = await File(path).readAsBytes();
+      final text = await GeminiService.transcribeAudio(base64Audio: base64Encode(bytes));
+      File(path).delete().ignore();
+      // O usuário vê (e pode editar) o que foi dito; o cálculo roda direto.
+      _descriptionCtrl.text = text;
+      if (mounted) setState(() => _transcribing = false);
+      await _analyze();
+    } on GeminiApiException catch (e) {
+      if (mounted) setState(() { _error = e.friendlyMessage; _transcribing = false; });
+    } catch (_) {
+      if (mounted) setState(() { _error = 'Falha ao gravar o áudio. Tente de novo.'; _transcribing = false; });
+    }
   }
 
   Future<void> _analyze() async {
@@ -95,12 +158,34 @@ class _TextScanScreenState extends State<TextScanScreen> {
               maxLines: 3,
               minLines: 1,
               textInputAction: TextInputAction.done,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'Ex: "4 fatias de pão de forma", "3 ovos mexidos e '
                     'uma fatia de pão", "café com leite e 2 colheres de açúcar"...',
+                suffixIcon: IconButton(
+                  tooltip: _recording ? 'Parar e transcrever' : 'Gravar áudio',
+                  onPressed: (_loading || _transcribing) ? null : _toggleRecording,
+                  icon: _transcribing
+                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                      : Icon(
+                          _recording ? Icons.stop_circle_rounded : Icons.mic_rounded,
+                          color: _recording ? AppColors.danger : AppColors.primary,
+                        ),
+                ),
               ),
               onSubmitted: (_) => _loading ? null : _analyze(),
             ),
+            if (_recording)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('Gravando... toque no botão para parar (máx. 60 s).',
+                    style: TextStyle(color: AppColors.danger, fontSize: 12)),
+              ),
+            if (_transcribing)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text('Transcrevendo o áudio...',
+                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              ),
             const SizedBox(height: 12),
             ElevatedButton.icon(
               onPressed: _loading ? null : _analyze,

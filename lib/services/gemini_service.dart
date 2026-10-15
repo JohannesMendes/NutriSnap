@@ -70,7 +70,7 @@ class GeminiApiException implements Exception {
 /// extraída do APK. O app manda a foto/texto pro backend e recebe de
 /// volta a estimativa de alimentos, peso e macros já pronta.
 class GeminiService {
-  static Future<List<Map<String, dynamic>>> _callBackend(Map<String, dynamic> body) async {
+  static Future<Map<String, dynamic>> _post(Map<String, dynamic> body) async {
     http.Response response;
     try {
       response = await http
@@ -88,9 +88,7 @@ class GeminiService {
       throw GeminiApiException.fromNetworkError(e);
     } catch (e) {
       // Qualquer outra falha ao montar/enviar a requisição (URI inválida,
-      // sem host configurado, etc.) — antes isso escapava sem virar
-      // GeminiApiException e a tela mostrava uma mensagem genérica que
-      // escondia a causa real. Agora sempre vira um erro de rede tratável.
+      // sem host configurado, etc.) vira um erro de rede tratável.
       throw GeminiApiException.fromNetworkError(e);
     }
 
@@ -99,12 +97,35 @@ class GeminiService {
     }
 
     try {
-      final data = jsonDecode(response.body);
+      return Map<String, dynamic>.from(jsonDecode(response.body));
+    } catch (e) {
+      throw GeminiApiException.fromParsingError(e);
+    }
+  }
+
+  static Future<List<Map<String, dynamic>>> _callBackend(Map<String, dynamic> body) async {
+    final data = await _post(body);
+    try {
       final list = data['items'] as List;
       return list.map((e) => Map<String, dynamic>.from(e)).toList();
     } catch (e) {
       throw GeminiApiException.fromParsingError(e);
     }
+  }
+
+  /// Envia um áudio (WAV, base64) pro backend, que transcreve exatamente o
+  /// que foi dito. O texto devolvido segue o mesmo caminho do "adicionar
+  /// por texto" (analyzeFoodText).
+  static Future<String> transcribeAudio({required String base64Audio}) async {
+    final data = await _post({'mode': 'transcribe', 'base64Audio': base64Audio});
+    final transcript = (data['transcript'] as String?)?.trim() ?? '';
+    if (transcript.isEmpty) {
+      throw GeminiApiException(
+        'Não consegui entender o áudio. Tente falar mais perto do microfone.',
+        'empty transcript',
+      );
+    }
+    return transcript;
   }
 
   /// Envia a foto do prato pro backend, que repassa pra API do Gemini e
