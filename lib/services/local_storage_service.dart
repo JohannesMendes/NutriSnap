@@ -272,6 +272,56 @@ class LocalStorageService {
     return dates;
   }
 
+  /// Quantos dias de histórico o app mantém. Passou disso, o dia é apagado
+  /// automaticamente pra o app não acumular dados no celular.
+  static const retentionDays = 30;
+
+  /// Datas (sem hora) em que o usuário usou o app: teve algum alimento
+  /// registrado ou bebeu água.
+  static Set<DateTime> loadUsedDates() {
+    final box = Hive.box(_diaryBox);
+    final used = <DateTime>{};
+    final dayPattern = RegExp(r'^\d{4}-\d{1,2}-\d{1,2}$');
+    final waterPattern = RegExp(r'^water_(\d{4}-\d{1,2}-\d{1,2})$');
+    DateTime parse(String k) {
+      final p = k.split('-');
+      return DateTime(int.parse(p[0]), int.parse(p[1]), int.parse(p[2]));
+    }
+    for (final k in box.keys) {
+      final key = k.toString();
+      try {
+        if (dayPattern.hasMatch(key)) {
+          final list = jsonDecode(box.get(key)) as List;
+          final hasFood = list.any((m) => ((m as Map)['entries'] as List?)?.isNotEmpty ?? false);
+          if (hasFood) used.add(parse(key));
+        } else {
+          final m = waterPattern.firstMatch(key);
+          if (m != null && (box.get(key) as int? ?? 0) > 0) used.add(parse(m.group(1)!));
+        }
+      } catch (_) {
+        // Chave inesperada — ignora.
+      }
+    }
+    return used;
+  }
+
+  /// Apaga refeições, água e foto de qualquer dia com mais de
+  /// [retentionDays] dias. Chamado ao abrir o app e ao abrir o calendário.
+  static Future<void> purgeOldDays() async {
+    final box = Hive.box(_diaryBox);
+    final now = DateTime.now();
+    final cutoff = DateTime(now.year, now.month, now.day).subtract(const Duration(days: retentionDays));
+    final pattern = RegExp(r'^(?:water_|photo_)?(\d{4})-(\d{1,2})-(\d{1,2})$');
+    final toDelete = <dynamic>[];
+    for (final k in box.keys) {
+      final m = pattern.firstMatch(k.toString());
+      if (m == null) continue;
+      final d = DateTime(int.parse(m.group(1)!), int.parse(m.group(2)!), int.parse(m.group(3)!));
+      if (d.isBefore(cutoff)) toDelete.add(k);
+    }
+    if (toDelete.isNotEmpty) await box.deleteAll(toDelete);
+  }
+
   /// Exclui todos os dados de um dia específico do histórico: as
   /// refeições/alimentos registrados naquele dia, o total de água bebida
   /// e a foto de check-in (se houver). Ação irreversível — a tela de

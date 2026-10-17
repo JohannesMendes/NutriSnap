@@ -34,6 +34,7 @@ Future<void> main() async {
 
     // Armazenamento local (Hive) — tudo fica salvo no aparelho, sem servidor.
     await LocalStorageService.init();
+    await LocalStorageService.purgeOldDays();
     await NotificationService.init();
 
     // Se o usuário já tem um perfil (não é a primeira vez que abre o app),

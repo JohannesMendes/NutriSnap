@@ -117,7 +117,16 @@ class GeminiService {
   /// que foi dito. O texto devolvido segue o mesmo caminho do "adicionar
   /// por texto" (analyzeFoodText).
   static Future<String> transcribeAudio({required String base64Audio}) async {
-    final data = await _post({'mode': 'transcribe', 'base64Audio': base64Audio});
+    final Map<String, dynamic> data;
+    try {
+      data = await _post({'mode': 'transcribe', 'base64Audio': base64Audio});
+    } on GeminiApiException catch (e) {
+      // Mostra um pedacinho do erro técnico pra facilitar descobrir a causa
+      // (ex.: backend desatualizado no Netlify vs. erro do Gemini).
+      final t = e.technicalDetails;
+      final detail = t.length > 180 ? '${t.substring(0, 180)}...' : t;
+      throw GeminiApiException('Não consegui transcrever o áudio.\n[$detail]', t);
+    }
     final transcript = (data['transcript'] as String?)?.trim() ?? '';
     if (transcript.isEmpty) {
       throw GeminiApiException(

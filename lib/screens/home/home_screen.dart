@@ -200,7 +200,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               Expanded(
                 child: _SectionButton(
                   icon: Icons.calendar_month_rounded,
-                  label: 'Histórico',
+                  label: 'Calendário',
                   filled: false,
                   onTap: () => Navigator.of(context)
                       .push(MaterialPageRoute(builder: (_) => const HistoryScreen()))
