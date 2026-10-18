@@ -26,10 +26,18 @@ jobs:
           flutter create --platforms=android --org com.nutrisnap --project-name nutrisnap /tmp/nutrisnap_scaffold
           cp -r /tmp/nutrisnap_scaffold/android .
 
-      - name: Permissão de microfone (gravação de áudio)
+      - name: Permissão de microfone e reconhecimento de voz
         run: |
-          sed -i 's#<application#<uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <application#' android/app/src/main/AndroidManifest.xml
-          grep -c RECORD_AUDIO android/app/src/main/AndroidManifest.xml
+          M=android/app/src/main/AndroidManifest.xml
+          sed -i 's#<application#<uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <application#' $M
+          # Android 11+: o app precisa declarar que quer enxergar o serviço de reconhecimento de voz
+          if grep -q '<queries>' $M; then
+            sed -i 's#<queries>#<queries>\n        <intent><action android:name="android.speech.RecognitionService"/></intent>#' $M
+          else
+            sed -i 's#</manifest>#    <queries><intent><action android:name="android.speech.RecognitionService"/></intent></queries>\n</manifest>#' $M
+          fi
+          grep -c RECORD_AUDIO $M
+          grep -c RecognitionService $M
 
       - name: "[DEBUG] Verificar se o secret está chegando"
         run: |

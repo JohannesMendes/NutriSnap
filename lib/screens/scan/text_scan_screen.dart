@@ -1,9 +1,5 @@
-import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:record/record.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../theme/app_theme.dart';
 import '../../services/gemini_service.dart';
 import 'ai_review_widgets.dart';
@@ -26,16 +22,15 @@ class _TextScanScreenState extends State<TextScanScreen> {
   String? _error;
   List<EditableEntry> _editable = [];
 
-  // Gravação de áudio -> transcrição -> cálculo automático.
-  final _recorder = AudioRecorder();
-  Timer? _autoStop;
-  bool _recording = false;
-  bool _transcribing = false;
+  // Ditado por voz (reconhecimento do próprio Android) -> cálculo automático.
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _speechReady = false;
+  bool _listening = false;
+  String _baseText = '';
 
   @override
   void dispose() {
-    _autoStop?.cancel();
-    _recorder.dispose();
+    _speech.cancel();
     _descriptionCtrl.dispose();
     for (final e in _editable) {
       e.dispose();
@@ -43,54 +38,78 @@ class _TextScanScreenState extends State<TextScanScreen> {
     super.dispose();
   }
 
-  Future<void> _toggleRecording() => _recording ? _stopAndTranscribe() : _startRecording();
-
-  Future<void> _startRecording() async {
-    if (!await _recorder.hasPermission()) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Permita o uso do microfone para gravar.')),
-      );
+  Future<void> _toggleListening() async {
+    if (_listening) {
+      await _speech.stop(); // o onStatus('done') dispara o cálculo
       return;
     }
-    final dir = await getTemporaryDirectory();
-    final path = '${dir.path}/refeicao_${DateTime.now().millisecondsSinceEpoch}.wav';
-    // WAV 16 kHz mono: 60 s ≈ 2 MB, bem abaixo do limite da Netlify Function.
-    await _recorder.start(
-      const RecordConfig(encoder: AudioEncoder.wav, sampleRate: 16000, numChannels: 1),
-      path: path,
-    );
-    if (!mounted) return;
-    setState(() => _recording = true);
-    _autoStop = Timer(const Duration(seconds: 60), _stopAndTranscribe);
-  }
-
-  Future<void> _stopAndTranscribe() async {
-    _autoStop?.cancel();
-    final path = await _recorder.stop();
-    if (!mounted) return;
+    FocusScope.of(context).unfocus();
+    if (!_speechReady) {
+      _speechReady = await _speech.initialize(
+        onStatus: _onSpeechStatus,
+        onError: _onSpeechError,
+      );
+      if (!_speechReady) {
+        if (!mounted) return;
+        setState(() => _error =
+            'Não consegui acessar o microfone ou o reconhecimento de voz. '
+            'Confira a permissão do microfone nas configurações do app e se o '
+            'celular tem o "Google" / "Serviços de fala do Google" ativo.');
+        return;
+      }
+    }
+    _baseText = _descriptionCtrl.text.trim();
     setState(() {
-      _recording = false;
-      _transcribing = true;
+      _listening = true;
       _error = null;
     });
-    if (path == null) {
-      setState(() => _transcribing = false);
-      return;
+    await _speech.listen(
+      localeId: 'pt_BR',
+      listenFor: const Duration(seconds: 60),
+      pauseFor: const Duration(seconds: 5),
+      listenOptions: stt.SpeechListenOptions(
+        partialResults: true,
+        cancelOnError: true,
+        listenMode: stt.ListenMode.dictation,
+      ),
+      onResult: (r) {
+        if (!mounted) return;
+        // Mostra o texto aparecendo enquanto a pessoa fala.
+        setState(() => _descriptionCtrl.text =
+            _baseText.isEmpty ? r.recognizedWords : '$_baseText ${r.recognizedWords}');
+      },
+    );
+  }
+
+  void _onSpeechStatus(String status) {
+    if (!_listening) return;
+    if (status == 'done' || status == 'notListening') {
+      if (!mounted) return;
+      setState(() => _listening = false);
+      final spoken = _descriptionCtrl.text.trim();
+      if (spoken.isNotEmpty && spoken != _baseText && !_loading) {
+        _analyze(); // manda direto pro cálculo nutricional
+      }
     }
-    try {
-      final bytes = await File(path).readAsBytes();
-      final text = await GeminiService.transcribeAudio(base64Audio: base64Encode(bytes));
-      File(path).delete().ignore();
-      // O usuário vê (e pode editar) o que foi dito; o cálculo roda direto.
-      _descriptionCtrl.text = text;
-      if (mounted) setState(() => _transcribing = false);
-      await _analyze();
-    } on GeminiApiException catch (e) {
-      if (mounted) setState(() { _error = e.friendlyMessage; _transcribing = false; });
-    } catch (_) {
-      if (mounted) setState(() { _error = 'Falha ao gravar o áudio. Tente de novo.'; _transcribing = false; });
+  }
+
+  void _onSpeechError(dynamic error) {
+    if (!mounted) return;
+    final code = (error.errorMsg ?? '').toString();
+    String msg;
+    if (code.contains('no_match') || code.contains('speech_timeout')) {
+      msg = 'Não ouvi nada. Toque no microfone e fale perto do celular.';
+    } else if (code.contains('permission')) {
+      msg = 'Sem permissão do microfone. Libere em Configurações > Apps > NutriSnap > Permissões.';
+    } else if (code.contains('network')) {
+      msg = 'Sem internet para o reconhecimento de voz. Verifique sua conexão.';
+    } else {
+      msg = 'Erro no reconhecimento de voz ($code). Tente de novo.';
     }
+    setState(() {
+      _listening = false;
+      _error = msg;
+    });
   }
 
   Future<void> _analyze() async {
@@ -162,29 +181,21 @@ class _TextScanScreenState extends State<TextScanScreen> {
                 hintText: 'Ex: "4 fatias de pão de forma", "3 ovos mexidos e '
                     'uma fatia de pão", "café com leite e 2 colheres de açúcar"...',
                 suffixIcon: IconButton(
-                  tooltip: _recording ? 'Parar e transcrever' : 'Gravar áudio',
-                  onPressed: (_loading || _transcribing) ? null : _toggleRecording,
-                  icon: _transcribing
-                      ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : Icon(
-                          _recording ? Icons.stop_circle_rounded : Icons.mic_rounded,
-                          color: _recording ? AppColors.danger : AppColors.primary,
-                        ),
+                  tooltip: _listening ? 'Parar' : 'Falar o que comeu',
+                  onPressed: _loading ? null : _toggleListening,
+                  icon: Icon(
+                    _listening ? Icons.stop_circle_rounded : Icons.mic_rounded,
+                    color: _listening ? AppColors.danger : AppColors.primary,
+                  ),
                 ),
               ),
               onSubmitted: (_) => _loading ? null : _analyze(),
             ),
-            if (_recording)
+            if (_listening)
               const Padding(
                 padding: EdgeInsets.only(top: 8),
-                child: Text('Gravando... toque no botão para parar (máx. 60 s).',
+                child: Text('Ouvindo... fale o que você comeu e toque no botão pra parar.',
                     style: TextStyle(color: AppColors.danger, fontSize: 12)),
-              ),
-            if (_transcribing)
-              const Padding(
-                padding: EdgeInsets.only(top: 8),
-                child: Text('Transcrevendo o áudio...',
-                    style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
               ),
             const SizedBox(height: 12),
             ElevatedButton.icon(
