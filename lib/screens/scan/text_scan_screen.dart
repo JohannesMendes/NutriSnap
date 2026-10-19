@@ -27,6 +27,9 @@ class _TextScanScreenState extends State<TextScanScreen> {
   bool _speechReady = false;
   bool _listening = false;
   String _baseText = '';
+  DateTime? _sessionEnd;
+  static const _maxChars = 5000;
+  static const _maxSession = Duration(seconds: 60);
 
   @override
   void dispose() {
@@ -40,7 +43,10 @@ class _TextScanScreenState extends State<TextScanScreen> {
 
   Future<void> _toggleListening() async {
     if (_listening) {
-      await _speech.stop(); // o onStatus('done') dispara o cálculo
+      _listening = false; // parada manual: não reinicia sozinho
+      await _speech.stop();
+      await Future.delayed(const Duration(milliseconds: 500)); // espera a última palavra chegar
+      _finishDictation();
       return;
     }
     FocusScope.of(context).unfocus();
@@ -59,37 +65,60 @@ class _TextScanScreenState extends State<TextScanScreen> {
       }
     }
     _baseText = _descriptionCtrl.text.trim();
+    _sessionEnd = DateTime.now().add(_maxSession);
     setState(() {
       _listening = true;
       _error = null;
     });
+    await _startListenChunk();
+  }
+
+  /// O Android encerra o reconhecimento sozinho depois de uns segundos de
+  /// silêncio. Aqui a gente religa em seguida (guardando o que já foi dito)
+  /// até a pessoa tocar em parar ou completar 1 minuto.
+  Future<void> _startListenChunk() async {
+    final remaining = _sessionEnd!.difference(DateTime.now());
+    if (remaining <= const Duration(seconds: 1)) {
+      _listening = false;
+      _finishDictation();
+      return;
+    }
     await _speech.listen(
       localeId: 'pt_BR',
-      listenFor: const Duration(seconds: 60),
-      pauseFor: const Duration(seconds: 5),
+      listenFor: remaining,
+      pauseFor: const Duration(seconds: 10),
       listenOptions: stt.SpeechListenOptions(
         partialResults: true,
-        cancelOnError: true,
+        cancelOnError: false,
         listenMode: stt.ListenMode.dictation,
       ),
       onResult: (r) {
         if (!mounted) return;
-        // Mostra o texto aparecendo enquanto a pessoa fala.
+        final joined = _baseText.isEmpty ? r.recognizedWords : '$_baseText ${r.recognizedWords}';
         setState(() => _descriptionCtrl.text =
-            _baseText.isEmpty ? r.recognizedWords : '$_baseText ${r.recognizedWords}');
+            joined.length > _maxChars ? joined.substring(0, _maxChars) : joined);
+        if (r.finalResult) _baseText = _descriptionCtrl.text.trim();
       },
     );
   }
 
   void _onSpeechStatus(String status) {
-    if (!_listening) return;
+    if (!_listening || !mounted) return;
     if (status == 'done' || status == 'notListening') {
-      if (!mounted) return;
-      setState(() => _listening = false);
-      final spoken = _descriptionCtrl.text.trim();
-      if (spoken.isNotEmpty && spoken != _baseText && !_loading) {
-        _analyze(); // manda direto pro cálculo nutricional
-      }
+      // Terminou um trecho sozinho (silêncio): continua ouvindo.
+      _baseText = _descriptionCtrl.text.trim();
+      Future.delayed(const Duration(milliseconds: 250), () {
+        if (mounted && _listening) _startListenChunk();
+      });
+    }
+  }
+
+  void _finishDictation() {
+    if (!mounted) return;
+    setState(() => _listening = false);
+    final spoken = _descriptionCtrl.text.trim();
+    if (spoken.isNotEmpty && !_loading) {
+      _analyze(); // manda direto pro cálculo nutricional
     }
   }
 
@@ -97,6 +126,13 @@ class _TextScanScreenState extends State<TextScanScreen> {
     if (!mounted) return;
     final code = (error.errorMsg ?? '').toString();
     String msg;
+    if (_listening && (code.contains('no_match') || code.contains('speech_timeout'))) {
+      // Silêncio num trecho: segue ouvindo até o fim da sessão.
+      Future.delayed(const Duration(milliseconds: 250), () {
+        if (mounted && _listening) _startListenChunk();
+      });
+      return;
+    }
     if (code.contains('no_match') || code.contains('speech_timeout')) {
       msg = 'Não ouvi nada. Toque no microfone e fale perto do celular.';
     } else if (code.contains('permission')) {
@@ -177,6 +213,7 @@ class _TextScanScreenState extends State<TextScanScreen> {
               maxLines: 3,
               minLines: 1,
               textInputAction: TextInputAction.done,
+              maxLength: _maxChars,
               decoration: InputDecoration(
                 hintText: 'Ex: "4 fatias de pão de forma", "3 ovos mexidos e '
                     'uma fatia de pão", "café com leite e 2 colheres de açúcar"...',
@@ -194,7 +231,7 @@ class _TextScanScreenState extends State<TextScanScreen> {
             if (_listening)
               const Padding(
                 padding: EdgeInsets.only(top: 8),
-                child: Text('Ouvindo... fale o que você comeu e toque no botão pra parar.',
+                child: Text('Ouvindo (até 1 minuto)... fale o que você comeu e toque no botão pra terminar.',
                     style: TextStyle(color: AppColors.danger, fontSize: 12)),
               ),
             const SizedBox(height: 12),

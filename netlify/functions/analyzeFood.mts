@@ -9,7 +9,24 @@
 
 import type { Context, Config } from '@netlify/functions';
 
-const GEMINI_MODEL = 'gemini-2.5-flash';
+// Modelos tentados em ordem. Se um estiver sobrecarregado (503), sem cota (429),
+// fora do ar ou aposentado (404), o backend tenta o próximo automaticamente.
+// Dá pra trocar o principal sem mexer no código: variável GEMINI_MODEL no Netlify.
+const MODEL_CHAIN = [
+  Netlify.env.get('GEMINI_MODEL') || 'gemini-3.8-flash',
+  'gemini-3.5-flash-lite',
+  'gemini-2.5-flash',
+];
+const RETRYABLE = [404, 429, 500, 502, 503, 504];
+
+function buildGenerationConfig(model: string, mode: string) {
+  // Modelos Gemini 3.x funcionam melhor com a temperatura padrão.
+  const legacy = model.startsWith('gemini-2');
+  if (mode === 'transcribe') return legacy ? { temperature: 0 } : {};
+  return legacy
+    ? { response_mime_type: 'application/json', temperature: 0.2 }
+    : { response_mime_type: 'application/json' };
+}
 
 // -----------------------------------------------------------------------
 // Prompts
@@ -280,51 +297,54 @@ export default async (req: Request, _context: Context) => {
         ]
       : [{ text: buildTextPrompt(description!) }];
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+  const startedAt = Date.now();
+  let last = { status: 502, body: 'sem resposta' };
 
-  try {
-    const geminiResponse = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts }],
-        generationConfig:
-          mode === 'transcribe'
-            ? { temperature: 0 }
-            : { response_mime_type: 'application/json', temperature: 0.2 },
-      }),
-      signal: AbortSignal.timeout(45000),
-    });
+  for (const model of MODEL_CHAIN) {
+    if (Date.now() - startedAt > 38000) break; // não estoura o tempo do app (50 s)
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    try {
+      const geminiResponse = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts }],
+          generationConfig: buildGenerationConfig(model, mode),
+        }),
+        signal: AbortSignal.timeout(20000),
+      });
+      const bodyText = await geminiResponse.text();
 
-    const bodyText = await geminiResponse.text();
+      if (!geminiResponse.ok) {
+        console.warn('Erro do Gemini', model, geminiResponse.status, bodyText);
+        last = { status: geminiResponse.status, body: bodyText };
+        if (!RETRYABLE.includes(geminiResponse.status)) break; // erro do pedido: trocar de modelo não ajuda
+        continue;
+      }
 
-    if (!geminiResponse.ok) {
-      console.warn('Erro retornado pelo Gemini', geminiResponse.status, bodyText);
-      return Response.json(
-        { error: 'gemini_error', status: geminiResponse.status, body: bodyText },
-        { status: geminiResponse.status },
-      );
+      const data = JSON.parse(bodyText);
+      const textParts = (data?.candidates?.[0]?.content?.parts ?? [])
+        .filter((p: any) => typeof p?.text === 'string' && !p.thought)
+        .map((p: any) => p.text as string);
+      if (textParts.length === 0) throw new Error('Resposta do Gemini sem texto.');
+      const text = textParts.join('');
+
+      if (mode === 'transcribe') {
+        return Response.json({ transcript: text.trim() });
+      }
+      const items = JSON.parse(text.replace(/```json/g, '').replace(/```/g, '').trim());
+      return Response.json({ items, model });
+    } catch (err) {
+      console.error('Falha com o modelo', model, err);
+      last = { status: 502, body: String((err as Error)?.message || err) };
+      // timeout, rede ou JSON inválido: tenta o próximo modelo
     }
-
-    const data = JSON.parse(bodyText);
-    let text: unknown = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (typeof text !== 'string') {
-      throw new Error('Resposta do Gemini sem o campo de texto esperado.');
-    }
-    if (mode === 'transcribe') {
-      return Response.json({ transcript: (text as string).trim() });
-    }
-    text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    const items = JSON.parse(text as string);
-
-    return Response.json({ items });
-  } catch (err) {
-    console.error('Falha ao processar chamada ao Gemini', err);
-    return Response.json(
-      { error: 'backend_error', message: String((err as Error)?.message || err) },
-      { status: 502 },
-    );
   }
+
+  return Response.json(
+    { error: 'gemini_error', status: last.status, body: last.body },
+    { status: last.status },
+  );
 };
 
 export const config: Config = {

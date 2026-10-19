@@ -36,7 +36,7 @@ class GeminiApiException implements Exception {
     } else if (statusCode >= 500) {
       friendly = 'O servidor da IA está com instabilidade no momento. Tente novamente em instantes.';
     } else if (statusCode == 404) {
-      friendly = 'Servidor da IA nao encontrado (erro 404). A URL do backend no app esta incorreta.';
+      friendly = 'O modelo de IA do servidor não está disponível (erro 404). Tente novamente mais tarde.';
     } else if (statusCode == 401 || statusCode == 403) {
       friendly = 'Acesso ao servidor da IA bloqueado (erro $statusCode). Verifique a protecao de deploy do Vercel.';
     } else {
