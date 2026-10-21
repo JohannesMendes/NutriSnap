@@ -116,20 +116,42 @@ os macros já devem vir multiplicados pela quantidade total:
   }
 ]`;
 
-const MEDIDAS_CASEIRAS = `8. MEDIDAS CASEIRAS (use como referência de volume/peso; se o usuário
-   der gramas ou ml explícitos, use o que ele disse):
-   - "xícara de café"/"cafezinho" = 50 ml; "xícara de chá" = 180 ml;
-     "xícara" sem especificar = 240 ml; "copo" = 200 ml (americano = 250 ml).
-   - "meia"/"meio" = 0,5; "um quarto" = 0,25; "uma" sem unidade = 1.
-   - Líquidos: 1 ml ≈ 1 g. Pós e farinhas variam muito: pese pela densidade
-     real do produto (ex.: 1 xícara de chá de farinha de trigo ≈ 120 g,
-     de aveia em flocos ≈ 80 g, de açúcar ≈ 180 g).
-   - Colher de sopa CHEIA de pó (farinha láctea, leite em pó, achocolatado,
-     aveia, whey) ≈ 15 g; RASA ≈ 8-10 g. Sem dizer, assuma rasa-cheia (~12 g).
-   - Colher de chá ≈ 5 g de pó/açúcar (3 ml de líquido); colher de café ≈ 2 g.
-   - Colher de sopa de óleo/azeite ≈ 13 g; de requeijão/creme ≈ 20 g.
-   - Se a medida for ambígua, escolha a interpretação MAIS COMUM no Brasil,
-     nunca o extremo, e continue calculando normalmente.
+const MEDIDAS_CASEIRAS = `8. MEDIDAS CASEIRAS — CONVERTA SEMPRE EM GRAMAS ANTES DE CALCULAR:
+   Passo 1: identifique a medida (colher de sopa/sobremesa/chá/café, xícara,
+   copo, scoop, concha...) e a quantidade ("meia" = 0,5, "uma" = 1).
+   Passo 2: converta em GRAMAS com a tabela abaixo. NUNCA use um valor único
+   de gramas por colher: o peso muda muito de um alimento pra outro (a mesma
+   colher de sopa pesa ~8 g de farinha láctea e ~30 g de requeijão).
+   Passo 3: calcule calorias e macros A PARTIR dessas gramas (gramas x valor
+   nutricional por grama do alimento). O campo "grams" é o total em gramas.
+   Se o usuário disser gramas ou ml, use exatamente o que ele disse.
+
+   Quando o usuário não disser "rasa" ou "cheia": use colher de sopa RASA para
+   pós, farinhas e açúcares (padrão das tabelas de nutrição) e CHEIA para
+   pastas e cremosos. Relações: cheia ≈ 1,5 a 2x a rasa; colher de sobremesa
+   ≈ 2/3 da de sopa; colher de chá ≈ 1/3 da de sopa; colher de café ≈ 1/6.
+
+   GRAMAS POR COLHER DE SOPA RASA (valores médios de tabelas de medidas
+   caseiras; arredonde sempre pra média, nunca pro extremo):
+   farinha láctea 8 | leite em pó 9 | achocolatado em pó 10 | cacau/chocolate
+   em pó 8 | aveia em flocos 7 | farinha de trigo 10 | farinha de mandioca ou
+   de rosca 10 | amido de milho 8 | açúcar refinado 12 (cheia: 24) | açúcar
+   mascavo 10 | café em pó 5 | whey/proteína em pó 10 (1 scoop/dose ≈ 30 g)
+   NA MEDIDA USUAL: óleo/azeite 8 | manteiga/margarina 14 | requeijão cremoso
+   (cheia) 30 | arroz cozido (cheia) 25 | milho verde em conserva 17 |
+   parmesão ralado (cheia) 15
+
+   LÍQUIDOS: colher de sopa = 15 ml, sobremesa = 10 ml, chá = 5 ml, café =
+   2 ml; 1 ml ≈ 1 g (mel e leite condensado ≈ 1,4 g/ml).
+   XÍCARA: de chá (culinária) = 240 ml; de café/cafezinho = 50 ml; copo
+   americano = 200 ml. Xícara de chá rasa de pó: farinha de trigo 120 g |
+   açúcar 200 g | aveia 80 g | achocolatado ou chocolate em pó 90 g | leite em
+   pó 120 g | farinha de mandioca 150 g.
+
+   Alimento que não está na tabela: estime o peso pela densidade real dele
+   (pós e farinhas são leves, ~0,3 a 0,6 g/ml; cremes e líquidos ~1 g/ml).
+   NÃO use 15 g por colher pra tudo. Se a medida for ambígua, escolha a
+   interpretação mais comum, nunca a maior.
 `;
 
 const TRANSCRIBE_PROMPT = `Transcreva este áudio em português do Brasil EXATAMENTE como foi dito,
