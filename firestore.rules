@@ -1,0 +1,53 @@
+rules_version = '2';
+
+// Regras do Firestore do NutriSnap.
+//
+// IDEIA CENTRAL: o usuário NUNCA pode mudar o próprio plano, bloqueio ou
+// validade. Quem libera o plano é o servidor (webhook do Mercado Pago, que
+// usa o Admin SDK e ignora estas regras) ou um administrador.
+//
+// Pra publicar: Console do Firebase > Firestore Database > Regras > cole
+// este conteúdo > Publicar.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+
+    function isAdmin() {
+      return signedIn() &&
+        get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.tipo_plano == 'admin';
+    }
+
+    match /usuarios/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+
+      // Conta nova só nasce como trial e desbloqueada.
+      allow create: if signedIn() && request.auth.uid == uid
+        && request.resource.data.tipo_plano == 'trial'
+        && request.resource.data.bloqueado == false;
+
+      // O dono edita o que quiser (metas, perfil...), MENOS os campos de plano.
+      allow update: if signedIn() && (
+        isAdmin() ||
+        (request.auth.uid == uid &&
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+            'tipo_plano', 'bloqueado', 'plano_expira_em',
+            'assinatura_ativada_em', 'data_criacao', 'ultimo_pagamento_id'
+          ]))
+      );
+    }
+
+    // Pagamentos Pix: o usuário só LÊ os próprios (pra a tela acompanhar o
+    // status). Só o servidor escreve.
+    match /pagamentos/{id} {
+      allow read: if signedIn() && resource.data.uid == request.auth.uid;
+      allow write: if false;
+    }
+
+    // Fluxo antigo de aprovação manual (se ainda quiser usar).
+    match /solicitacoes_pagamento/{id} {
+      allow create: if signedIn() && request.resource.data.uid == request.auth.uid;
+      allow read, update, delete: if isAdmin();
+    }
+  }
+}

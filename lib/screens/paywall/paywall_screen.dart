@@ -2,14 +2,20 @@ import 'package:flutter/material.dart';
 import '../../theme/app_theme.dart';
 import '../../config/plans_config.dart';
 import '../../services/auth_service.dart';
-import '../../services/payment_request_service.dart';
+import '../../services/pix_payment_service.dart';
+import 'pix_checkout_screen.dart';
 
 /// Paywall mostrada quando o trial de 15 dias expira (ou pra quem quiser
 /// assinar antes disso, se você chamar essa tela de outro lugar). Os 3
 /// planos vêm de `kSubscriptionPlans` (lib/config/plans_config.dart) — pra
 /// mudar preço/desconto/destaque, mexa só lá, não aqui.
 class PaywallScreen extends StatefulWidget {
-  const PaywallScreen({super.key});
+  /// [planExpired]: o plano pago venceu (muda o título).
+  /// [voluntary]: aberta pelo Perfil por quem já tem acesso.
+  const PaywallScreen({super.key, this.planExpired = false, this.voluntary = false});
+
+  final bool planExpired;
+  final bool voluntary;
 
   @override
   State<PaywallScreen> createState() => _PaywallScreenState();
@@ -27,84 +33,31 @@ class _PaywallScreenState extends State<PaywallScreen> {
     _selectedPlanId = (highlighted.isNotEmpty ? highlighted.first : kSubscriptionPlans.first).id;
   }
 
-  /// Sem gateway automático (Stripe/Mercado Pago) por enquanto, o
-  /// pagamento é manual via PIX: o usuário paga fora do app e depois
-  /// aperta "Já paguei", que só registra uma solicitação pendente — o
-  /// admin confere no banco e libera pelo painel de aprovações. Nada
-  /// aqui ativa o plano sozinho.
-  Future<void> _claimPayment() async {
-    final user = AuthService.currentUser;
-    if (user == null) return;
-
-    final contaPagamento = await _askPaymentAccountName();
-    if (contaPagamento == null || contaPagamento.trim().isEmpty) return;
-
+  /// Pede ao servidor um Pix do Mercado Pago pro plano escolhido e abre a
+  /// tela com o QR code. O plano é liberado sozinho quando o pagamento cai
+  /// (webhook no servidor) — nada aqui ativa o plano.
+  Future<void> _payWithPix() async {
     setState(() => _isSubmitting = true);
     try {
-      await PaymentRequestService.createRequest(
-        uid: user.uid,
-        nome: user.displayName ?? '',
-        email: user.email,
-        planoId: _selectedPlanId,
-        nomeContaPagamento: contaPagamento.trim(),
-      );
+      final charge = await PixPaymentService.createCharge(_selectedPlanId);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Recebemos sua solicitação! Assim que confirmarmos o PIX, seu plano é liberado.'),
+      final plan = subscriptionPlanById(_selectedPlanId);
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => PixCheckoutScreen(charge: charge, planTitle: plan?.title ?? ''),
         ),
       );
-    } catch (e) {
+    } on PixPaymentException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Não foi possível enviar sua solicitação. Tente novamente.')),
+        const SnackBar(content: Text('Não foi possível gerar o Pix. Tente novamente.')),
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
     }
-  }
-
-  /// Pede o nome da conta usada pra pagar o PIX (o que aparece no
-  /// comprovante/extrato) — é o dado que o admin usa pra achar o
-  /// pagamento no banco na hora de aprovar.
-  Future<String?> _askPaymentAccountName() async {
-    final controller = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('Confirmar pagamento'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Informe o nome da conta que você usou pra pagar o PIX '
-              '(o mesmo nome que aparece no seu comprovante), pra '
-              'conseguirmos localizar seu pagamento.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              autofocus: true,
-              textCapitalization: TextCapitalization.words,
-              decoration: const InputDecoration(hintText: 'Nome usado na conta do PIX'),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(dialogContext).pop(controller.text),
-            child: const Text('Enviar'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -117,14 +70,16 @@ class _PaywallScreenState extends State<PaywallScreen> {
           children: [
             const Icon(Icons.lock_clock_rounded, size: 48, color: AppColors.primary),
             const SizedBox(height: 16),
-            const Text(
-              'Seu período de testes acabou',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            Text(
+              widget.voluntary
+                  ? 'Escolha seu plano'
+                  : (widget.planExpired ? 'Seu plano expirou' : 'Seu período de testes acabou'),
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
             ),
             const SizedBox(height: 8),
             const Text(
-              'Assine um plano pra continuar registrando suas refeições, água '
-              'e acompanhando sua evolução no NutriSnap.',
+              'Pague com Pix e seu plano é liberado automaticamente, na hora em '
+              'que o pagamento for confirmado.',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 14, height: 1.4),
             ),
             const SizedBox(height: 24),
@@ -136,18 +91,16 @@ class _PaywallScreenState extends State<PaywallScreen> {
               ),
               const SizedBox(height: 12),
             ],
-            const SizedBox(height: 12),
-            const _PixPaymentCard(),
             const SizedBox(height: 20),
             ElevatedButton(
-              onPressed: _isSubmitting ? null : _claimPayment,
+              onPressed: _isSubmitting ? null : _payWithPix,
               child: _isSubmitting
                   ? const SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.black),
                     )
-                  : const Text('Já paguei'),
+                  : const Text('Pagar com Pix'),
             ),
             const SizedBox(height: 12),
             Center(
@@ -265,49 +218,6 @@ class _PlanCard extends StatelessWidget {
             ],
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// Card com o QR code fixo do PIX pra pagamento manual (sem gateway
-/// automático) — a pessoa escaneia, paga o valor do plano escolhido e
-/// só depois aperta "Já paguei" logo abaixo pra registrar a solicitação
-/// que o admin confere e aprova.
-class _PixPaymentCard extends StatelessWidget {
-  const _PixPaymentCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Column(
-        children: [
-          const Text(
-            'Pague com PIX',
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 15, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Escaneie o QR code no app do seu banco pra pagar o valor do plano escolhido acima.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12.5, height: 1.4),
-          ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.asset(
-              'assets/images/pix_qr_code.png',
-              width: 200,
-              height: 200,
-              fit: BoxFit.cover,
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -108,7 +108,7 @@ class _LicenseGateState extends State<LicenseGate> {
         }
 
         if (profile.bloqueado) return const BlockedAccountScreen();
-        if (!profile.hasAccess) return const PaywallScreen();
+        if (!profile.hasAccess) return PaywallScreen(planExpired: profile.isPlanExpired);
         return widget.child;
       },
     );

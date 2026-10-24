@@ -16,17 +16,25 @@ class AccountStatus {
   final DateTime dataCriacao;
   final String tipoPlano; // "trial" | "ilimitado" | "admin" | id de um plano pago (ver plans_config.dart)
   final bool bloqueado;
+  final DateTime? planoExpiraEm; // validade do plano pago (null = sem vencimento, contas antigas)
 
   const AccountStatus({
     required this.uid,
     required this.dataCriacao,
     required this.tipoPlano,
     required this.bloqueado,
+    this.planoExpiraEm,
   });
 
   bool get isUnlimited => _unlimitedPlanTypes.contains(tipoPlano);
   bool get isAdmin => tipoPlano == 'admin';
   bool get isTrial => tipoPlano == 'trial';
+  bool get isPaidPlan => !isUnlimited && !isTrial;
+
+  /// Plano pago com data de validade já vencida. Contas pagas antigas, sem
+  /// `plano_expira_em`, continuam valendo (nunca vencem).
+  bool get isPlanExpired =>
+      isPaidPlan && planoExpiraEm != null && DateTime.now().isAfter(planoExpiraEm!);
 
   int get trialDaysElapsed => DateTime.now().difference(dataCriacao).inDays;
   int get trialDaysRemaining => (kTrialDurationDays - trialDaysElapsed).clamp(0, kTrialDurationDays);
@@ -35,7 +43,8 @@ class AccountStatus {
   /// true quando o usuário pode de fato usar o app: não está bloqueado
   /// manualmente, e (tem plano ilimitado/admin, tem um plano pago, OU
   /// ainda está dentro dos 15 dias de trial).
-  bool get hasAccess => !bloqueado && (isUnlimited || !isTrialExpired);
+  bool get hasAccess =>
+      !bloqueado && (isUnlimited || (isTrial ? !isTrialExpired : !isPlanExpired));
 
   /// Nome comercial do plano pra exibir na tela de Perfil — usa o nome
   /// de venda (Prata/Ouro/Diamante) quando `tipoPlano` é um plano pago
@@ -69,6 +78,9 @@ class AccountStatus {
       dataCriacao: ts is Timestamp ? ts.toDate() : DateTime.now(),
       tipoPlano: (data['tipo_plano'] as String?) ?? 'trial',
       bloqueado: (data['bloqueado'] as bool?) ?? false,
+      planoExpiraEm: data['plano_expira_em'] is Timestamp
+          ? (data['plano_expira_em'] as Timestamp).toDate()
+          : null,
     );
   }
 }
@@ -108,9 +120,12 @@ class UserProfileService {
   /// do pagamento e já libera o acesso, atualizando `tipo_plano` pro id
   /// do plano escolhido (ver plans_config.dart).
   static Future<void> activatePlan(String uid, String planId) async {
+    // Aprovação manual feita pelo admin: define a validade conforme o plano.
+    final days = subscriptionPlanById(planId)?.durationDays;
     await _collection.doc(uid).set({
       'tipo_plano': planId,
       'assinatura_ativada_em': FieldValue.serverTimestamp(),
+      if (days != null) 'plano_expira_em': Timestamp.fromDate(DateTime.now().add(Duration(days: days))),
     }, SetOptions(merge: true));
   }
 

@@ -17,6 +17,7 @@ class SubscriptionPlan {
   final String? badgeLabel; // ex: "Mais Vantajoso", "-20%"
   final bool highlight; // dá destaque visual ao card (borda/cor diferente)
   final List<String> features;
+  final int durationDays; // quanto tempo o plano dura depois de pago
 
   const SubscriptionPlan({
     required this.id,
@@ -27,9 +28,13 @@ class SubscriptionPlan {
     this.badgeLabel,
     this.highlight = false,
     this.features = const [],
+    required this.durationDays,
   });
 }
 
+/// ⚠️ O preço COBRADO de verdade fica no servidor (netlify/lib/plans.mts).
+/// Se mudar um valor aqui, mude lá também — aqui é só o texto da tela.
+///
 /// Lista exibida na paywall, nessa ordem — estratégia de ancoragem de
 /// preços: o Prata (semanal) aparece primeiro com o valor "por semana"
 /// alto de propósito, fazendo o Ouro (mensal) parecer uma economia óbvia
@@ -43,6 +48,7 @@ class SubscriptionPlan {
 const List<SubscriptionPlan> kSubscriptionPlans = [
   SubscriptionPlan(
     id: 'semanal',
+    durationDays: 7,
     title: 'Prata',
     priceLabel: 'R\$ 6,90',
     periodLabel: '/semana',
@@ -54,6 +60,7 @@ const List<SubscriptionPlan> kSubscriptionPlans = [
   ),
   SubscriptionPlan(
     id: 'mensal',
+    durationDays: 30,
     title: 'Ouro',
     priceLabel: 'R\$ 12,90',
     periodLabel: '/mês',
@@ -65,6 +72,7 @@ const List<SubscriptionPlan> kSubscriptionPlans = [
   ),
   SubscriptionPlan(
     id: 'anual',
+    durationDays: 365,
     title: 'Diamante',
     priceLabel: 'R\$ 99,90',
     periodLabel: '/ano',

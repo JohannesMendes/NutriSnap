@@ -227,9 +227,12 @@ class _PlanCard extends StatelessWidget {
           else if (daysRemaining != null)
             _DaysRemainingRow(daysRemaining: daysRemaining, expired: profile.isTrialExpired)
           else
-            const Text(
-              'Assinatura ativa — renovação automática, sem necessidade de ação.',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
+            Text(
+              profile.planoExpiraEm != null
+                  ? 'Plano ativo até ${_fmtDate(profile.planoExpiraEm!)}. Pra renovar, '
+                      'é só pagar um novo Pix — o tempo restante é somado.'
+                  : 'Assinatura ativa.',
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13, height: 1.4),
             ),
           if (!isFullAccess) ...[
             const SizedBox(height: 20),
@@ -237,7 +240,7 @@ class _PlanCard extends StatelessWidget {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const PaywallScreen()),
+                  MaterialPageRoute(builder: (_) => const PaywallScreen(voluntary: true)),
                 ),
                 icon: const Icon(Icons.workspace_premium_rounded),
                 label: Text(profile.isTrial ? 'Ver planos e assinar' : 'Gerenciar / mudar de plano'),
@@ -272,3 +275,6 @@ class _DaysRemainingRow extends StatelessWidget {
     );
   }
 }
+
+String _fmtDate(DateTime d) =>
+    '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
