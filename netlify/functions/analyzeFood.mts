@@ -7,6 +7,7 @@
 // { mode: "photo", base64Image } ou { mode: "text", description } → resposta
 // { items: [...] }.
 
+import { guardRequest } from '../lib/guard.mts';
 import type { Context, Config } from '@netlify/functions';
 
 // Modelos tentados em ordem. Se um estiver sobrecarregado (503), sem cota (429),
@@ -273,6 +274,17 @@ export default async (req: Request, _context: Context) => {
     return Response.json({ error: 'Método não permitido. Use POST.' }, { status: 405 });
   }
 
+  // Porteiro: só usuário logado, com conta ativa e dentro do limite diário.
+  try {
+    const guard = await guardRequest(req);
+    if (!guard.ok) {
+      return Response.json({ error: guard.code, message: guard.message }, { status: guard.status });
+    }
+  } catch (err) {
+    console.error('Falha no porteiro do backend', err);
+    return Response.json({ error: 'server_misconfigured', message: 'Servidor mal configurado.' }, { status: 500 });
+  }
+
   const apiKey = Netlify.env.get('GEMINI_API_KEY');
   if (!apiKey) {
     // Só acontece se a variável de ambiente não foi cadastrada nas
@@ -365,7 +377,7 @@ export default async (req: Request, _context: Context) => {
 
   return Response.json(
     { error: 'gemini_error', status: last.status, body: last.body },
-    { status: last.status },
+    { status: [401, 403].includes(last.status) ? 502 : last.status },
   );
 };
 

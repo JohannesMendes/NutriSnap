@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import '../config/app_config.dart';
+import 'auth_service.dart';
 
 /// Exceção lançada quando algo dá errado ao falar com o backend de IA.
 /// Guarda o erro técnico original (pra debug/log) mas expõe uma
@@ -27,7 +28,13 @@ class GeminiApiException implements Exception {
   factory GeminiApiException.fromHttpError(int statusCode, String body) {
     final lowerBody = body.toLowerCase();
     String friendly;
-    if (statusCode == 503 || lowerBody.contains('unavailable') || lowerBody.contains('overloaded') || lowerBody.contains('high demand')) {
+    if (lowerBody.contains('daily_limit')) {
+      friendly = 'Você atingiu o limite diário de análises com IA. Volte amanhã!';
+    } else if (statusCode == 401) {
+      friendly = 'Sua sessão expirou. Saia da conta e entre de novo.';
+    } else if (statusCode == 403) {
+      friendly = 'Seu plano não está ativo. Renove o plano pra continuar usando a IA.';
+    } else if (statusCode == 503 || lowerBody.contains('unavailable') || lowerBody.contains('overloaded') || lowerBody.contains('high demand')) {
       friendly = 'O servidor da IA está sobrecarregado no momento. Tente novamente em alguns segundos.';
     } else if (statusCode == 429 || lowerBody.contains('rate limit') || lowerBody.contains('quota')) {
       friendly = 'Muitas tentativas em pouco tempo. Aguarde um instante e tente de novo.';
@@ -37,8 +44,6 @@ class GeminiApiException implements Exception {
       friendly = 'O servidor da IA está com instabilidade no momento. Tente novamente em instantes.';
     } else if (statusCode == 404) {
       friendly = 'O modelo de IA do servidor não está disponível (erro 404). Tente novamente mais tarde.';
-    } else if (statusCode == 401 || statusCode == 403) {
-      friendly = 'Acesso ao servidor da IA bloqueado (erro $statusCode). Verifique a protecao de deploy do Vercel.';
     } else {
       friendly = 'Algo deu errado ao falar com a IA (erro $statusCode). Tente novamente em instantes.';
     }
@@ -71,12 +76,21 @@ class GeminiApiException implements Exception {
 /// volta a estimativa de alimentos, peso e macros já pronta.
 class GeminiService {
   static Future<Map<String, dynamic>> _post(Map<String, dynamic> body) async {
+    // O backend só atende usuários logados: manda o token do Firebase.
+    String? idToken;
+    try {
+      idToken = await AuthService.currentUser?.getIdToken();
+    } catch (_) {}
+
     http.Response response;
     try {
       response = await http
           .post(
             Uri.parse(kAnalyzeFoodEndpoint),
-            headers: {'Content-Type': 'application/json'},
+            headers: {
+              'Content-Type': 'application/json',
+              if (idToken != null) 'Authorization': 'Bearer $idToken',
+            },
             body: jsonEncode(body),
           )
           .timeout(const Duration(seconds: 50));

@@ -39,10 +39,6 @@ jobs:
           grep -c RECORD_AUDIO $M
           grep -c RecognitionService $M
 
-      - name: "[DEBUG] Verificar se o secret está chegando"
-        run: |
-          echo -n '${{ secrets.GOOGLE_SERVICES_JSON }}' | wc -c
-
       - name: Adicionar arquivo de configuração do Firebase (google-services.json)
         run: |
           cat > android/app/google-services.json << 'EOF'
