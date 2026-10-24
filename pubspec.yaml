@@ -1,7 +1,11 @@
 name: nutrisnap
 description: "NutriSnap — app de nutrição e evolução, 100% local no aparelho."
 publish_to: 'none'
+<<<<<<< HEAD
 version: 1.1.7
+=======
+version: 1.2.1
+>>>>>>> c9d4b387130a2c94b05966c19a95f1f86ad2e3c2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
